@@ -534,7 +534,8 @@ function loadLocal(){
   let any=false;
   for(const k in DOCS){ const v=lsGet('lp.'+k); if(v){ S[k]=Object.assign(DOCS[k](),v); if(k!=='prefs') any=true } else S[k]=DOCS[k](); }
   META=Object.assign({example:false},lsGet('lp.meta')||{});
-  if(!any){ const pr=S.prefs; S=examples(); S.prefs=pr; META.example=true; for(const k in S) persistLocal(k); saveMeta(); }
+  /* The planner starts empty. Untouched example entries from older versions are cleared (they were never saved to the account). */
+  if(META.example){ for(const k in DOCS){ if(k==='prefs') continue; S[k]=DOCS[k](); persistLocal(k); } META.example=false; saveMeta(); }
 }
 
 let db=null, col=null, syncState='local', firstSync=false, pendingRender=false;
@@ -1267,6 +1268,8 @@ function pageAppearance(){
   return page('paint','Appearance','Choose how your planner looks. Your choices are saved with the rest of your planner.',
     [btn('Reset to default',()=>{ S.prefs=Object.assign(DOCS.prefs(),{_u:S.prefs._u}); save('prefs'); toast('Appearance reset'); },'btn')],
     h('div',{class:'stack',style:'gap:34px'},
+      block('Clear all entries',null,h('div',{style:'display:flex;align-items:center;gap:12px;flex-wrap:wrap'},h('span',{class:'muted',style:'flex:1;min-width:220px'},'Deletes every event, task, goal, transaction, habit, workout, food entry, recipe and movie, on every device. Your appearance settings stay. Download a backup first if you might want them back.'),
+        (()=>{ let armed=false; const b=h('button',{type:'button',class:'btn danger',onclick:()=>{ if(!armed){ armed=true; b.textContent='Click again to delete everything'; return; } const now=Date.now(); for(const d in DOCS){ if(d==='prefs') continue; S[d]=DOCS[d](); S[d]._u=now; persistLocal(d); queueDb(d);} META.example=false; saveMeta(); render(true); toast('All entries cleared'); }},'Clear all entries'); return b; })())),
       block('Calendar',null,h('div',{style:'display:flex;align-items:center;gap:12px;flex-wrap:wrap'},h('span',null,'Weeks start on'),seg([['0','Sunday'],['1','Monday']],String(wkStart()),v=>setPref('weekStart',+v)))),
       block('Light or dark',null,h('div',{class:'modes'},MODES.map(([v,l,d])=>h('button',{type:'button',class:'opt'+(p.mode===v?' on':''),'aria-pressed':p.mode===v?'true':'false',onclick:()=>setPref('mode',v)},modePrev(v),h('div',{class:'meta'},h('b',null,l),h('span',null,d)))))),
       block('Template',h('span',{class:'small faint'},'Picking one also resets the fonts below to match it'),h('div',{class:'opts'},TPLS.map(([v,l,d,font,w,al,ad])=>h('button',{type:'button',class:'opt'+((p.tpl||'classic')===v?' on':''),'aria-pressed':(p.tpl||'classic')===v?'true':'false',onclick:()=>{ S.prefs.titleFont=''; S.prefs.bodyFont=''; setPref('tpl',v); }},
