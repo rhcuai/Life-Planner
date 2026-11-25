@@ -359,6 +359,39 @@ button.acct:hover{border-color:var(--faint)}
 .acct-bal{font-size:22px;font-weight:600;letter-spacing:-.01em}
 .goal .goalbar>i{background:var(--solid,var(--tf))}
 @media (max-width:640px){ .row.bill{gap:8px} .row.bill .tag{display:none} .acct-grid{grid-template-columns:minmax(0,1fr)} }
+/* Cycle */
+.cyc-hero{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.cyc-ring{width:190px;height:190px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;border:10px solid color-mix(in srgb,var(--cyc) 30%,var(--bg));background:color-mix(in srgb,var(--cyc) 8%,var(--bg))}
+.cyc-ring.on{border-color:var(--cyc);background:color-mix(in srgb,var(--cyc) 16%,var(--bg))}
+.cyc-ring.fert{border-color:color-mix(in srgb,var(--fertc) 60%,var(--bg))}
+.cyc-big{font-family:var(--font-title);font-weight:var(--title-w);font-size:22px;line-height:1.15}
+.cyc-small{font-size:13px;color:var(--muted);margin-top:6px}
+.cyc-acts{display:flex;flex-direction:column;gap:8px}
+.v.cyc-sm{font-size:18px}
+:root{--cyc:#d6336c;--fertc:#1c9e8f}
+.cyc-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cyc-dow{text-align:center;font-size:11.5px;color:var(--muted);padding-bottom:2px}
+.cyc-cell{position:relative;aspect-ratio:1;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;font-size:13.5px;color:var(--fg);font-variant-numeric:tabular-nums;max-height:48px;justify-self:center;width:100%;max-width:48px}
+.cyc-cell:hover{background:var(--hover)}
+.cyc-cell.out{color:var(--faint)}
+.cyc-cell.per{background:var(--cyc);color:#fff}
+.cyc-cell.spot{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--cyc) 55%,transparent)}
+.cyc-cell.pred{box-shadow:inset 0 0 0 2px var(--cyc);border:0;color:var(--cyc);background:transparent}
+.cyc-cell.fert{background:color-mix(in srgb,var(--fertc) 16%,transparent)}
+.cyc-cell.ov{background:color-mix(in srgb,var(--fertc) 30%,transparent);box-shadow:inset 0 0 0 2px var(--fertc)}
+.cyc-cell.today .cn{font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.cyc-cell.sel{outline:2px solid var(--fg);outline-offset:1px}
+.cdot{position:absolute;bottom:4px;left:50%;width:4px;height:4px;border-radius:50%;background:currentColor;transform:translateX(-50%);opacity:.7}
+.cyc-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+.cyc-legend span{display:inline-flex;align-items:center;gap:6px}
+.lg{display:inline-block;width:12px;height:12px;border-radius:50%}
+.lg.per{background:var(--cyc)} .lg.pred{box-shadow:inset 0 0 0 2px var(--cyc)} .lg.fert{background:color-mix(in srgb,var(--fertc) 25%,transparent)} .lg.ov{box-shadow:inset 0 0 0 2px var(--fertc);background:color-mix(in srgb,var(--fertc) 30%,transparent)} .lg.spot{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--cyc) 55%,transparent)}
+.cyc-day{gap:14px}
+.cyc-chips{display:flex;flex-wrap:wrap;gap:6px}
+.cyc-chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 12px;font-size:13px;color:var(--fg)}
+.cyc-chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.cyc-chip.flow.on{background:var(--cyc);border-color:var(--cyc);color:#fff}
+@media (max-width:640px){ .cyc-hero{justify-content:center} .cyc-ring{width:170px;height:170px} .cyc-acts{flex-direction:row;flex-wrap:wrap;justify-content:center} }
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -575,6 +608,7 @@ const ICONS={
   week:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
   goals:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
   money:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>',
+  cycle:'<path d="M12 3.5c3.2 4 5.6 7.3 5.6 10.4A5.6 5.6 0 0 1 6.4 13.9C6.4 10.8 8.8 7.5 12 3.5z"/><path d="M9.4 14.2a2.7 2.7 0 0 0 2.6 2.4"/>',
   habits:'<path d="M5 4h10a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z"/><path d="M9 9l2 2 4-4M9 15h6"/>',
   workouts:'<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
   calories:'<path d="M12 7.5c-3-2.2-7.5-.5-7.5 4.5 0 4.2 3 8.5 5.2 8.5 1 0 1.5-.5 2.3-.5s1.3.5 2.3.5c2.2 0 5.2-4.3 5.2-8.5 0-5-4.5-6.7-7.5-4.5z"/><path d="M12 7.5c0-2 1-3.6 3-4"/>',
@@ -629,7 +663,7 @@ function stars(val,onset,ro){ return h('span',{class:'stars'+(ro?' ro':''),'aria
 const DOCS={
   calendar:()=>({events:[]}), tasks:()=>({items:[]}), week:()=>({plans:{}}), goals:()=>({items:[]}),
   money:()=>({tx:[],budgets:{}}), habits:()=>({list:[],log:{},journal:{}}), workouts:()=>({sessions:[]}),
-  food:()=>({goal:2000,entries:[]}), recipes:()=>({items:[]}), movies:()=>({items:[]}), prefs:()=>({weekStart:0,mode:'system',tpl:'classic',bg:'paper',titleFont:'fraunces',bodyFont:'dmsans',bgColor:'#cfe3d4'})
+  food:()=>({goal:2000,entries:[]}), cycle:()=>({days:{},avgCycle:28,avgPeriod:5}), recipes:()=>({items:[]}), movies:()=>({items:[]}), prefs:()=>({weekStart:0,mode:'system',tpl:'classic',bg:'paper',titleFont:'fraunces',bodyFont:'dmsans',bgColor:'#cfe3d4'})
 };
 let S={}; let META={example:false};
 function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null }catch(e){ return null } }
@@ -1453,6 +1487,93 @@ function pageMoney(){
         h('button',{class:'title grow',style:'flex:1',onclick:()=>editTx(x)},x.desc||x.category),tag(x.category),h('span',{class:'num '+(x.type==='income'?'pos':''),style:'white-space:nowrap;min-width:84px;text-align:right'},(x.type==='income'?'+':'−')+fmtM(x.amount))))):h('div',{class:'empty'},'No transactions this month.'))));
 }
 
+/* Cycle tracker (private: stays on this page only) */
+const FLOWS=[['spotting','Spotting'],['light','Light'],['medium','Medium'],['heavy','Heavy']];
+const CYC_SYM=['Cramps','Headache','Bloating','Tender breasts','Acne','Backache','Fatigue','Cravings','Nausea','Insomnia','Diarrhea','Constipation'];
+const CYC_MOOD=['Happy','Calm','Energetic','Sensitive','Irritable','Anxious','Sad','Moody'];
+function cycleModel(){
+  const C=S.cycle, days=C.days||{};
+  const bleed=Object.keys(days).filter(d=>days[d].flow&&days[d].flow!=='spotting').sort();
+  const periods=[]; for(const d of bleed){ const p=periods[periods.length-1]; if(p&&dnum(pd(d))-dnum(pd(p.end))<=2) p.end=d; else periods.push({start:d,end:d}); }
+  periods.forEach(p=>p.len=dnum(pd(p.end))-dnum(pd(p.start))+1);
+  const gaps=[]; for(let i=1;i<periods.length;i++){ const g=dnum(pd(periods[i].start))-dnum(pd(periods[i-1].start)); periods[i-1].cycle=g; if(g>=15&&g<=60) gaps.push(g); }
+  const avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
+  const cyc=gaps.length?Math.round(avg(gaps.slice(-6))):Math.min(60,Math.max(15,num(C.avgCycle)||28));
+  const plen=periods.length?Math.max(1,Math.round(avg(periods.slice(-6).map(p=>p.len)))):Math.min(14,Math.max(1,num(C.avgPeriod)||5));
+  const last=periods[periods.length-1]||null, t=today();
+  let next=null, ov=null, fert=null, cycleDay=null, late=0; const predicted=new Set(), fertile=new Set(), ovs=new Set();
+  if(last){
+    cycleDay=dnum(pd(t))-dnum(pd(last.start))+1;
+    next=ymd(addD(pd(last.start),cyc)); if(next<t){ late=dnum(pd(t))-dnum(pd(next)); }
+    for(let k=0;k<13;k++){ const st=addD(pd(last.start),cyc*(k+1)); const s0=ymd(st)<t&&k===0?pd(t):st; /* when late, show the predicted period from today */
+      if(k>0||ymd(st)>last.end) for(let i=0;i<plen;i++){ const d=ymd(addD(s0,i)); if(!days[d]||!days[d].flow) predicted.add(d); }
+      const o=addD(st,-14); ovs.add(ymd(o)); for(let i=-5;i<=1;i++) fertile.add(ymd(addD(o,i))); }
+    { const o=addD(pd(last.start),cyc-14); ovs.add(ymd(o)); for(let i=-5;i<=1;i++) fertile.add(ymd(addD(o,i))); }
+    const upcoming=[...ovs].sort().find(d=>d>=t); ov=upcoming||null;
+    if(ov) fert=[ymd(addD(pd(ov),-5)),ymd(addD(pd(ov),1))];
+  }
+  return {periods,cyc,plen,last,next,ov,fert,cycleDay,late,predicted,fertile,ovs,gapsKnown:gaps.length};
+}
+function setCycDay(ds,patch){ const D=S.cycle.days; const e=Object.assign({},D[ds]||{},patch); if(!e.flow) delete e.flow; if(e.sym&&!e.sym.length) delete e.sym; if(e.mood&&!e.mood.length) delete e.mood; if(!(e.note||'').trim()) delete e.note;
+  if(Object.keys(e).length) D[ds]=e; else delete D[ds]; save('cycle'); }
+function pageCycle(){
+  const C=S.cycle; C.days=C.days||{}; const t=today(); const m=cycleModel();
+  const ym=V.cycMonth||t.slice(0,7), sel=V.cycDay||t; const [Y,M]=ym.split('-').map(Number);
+  const shift=n=>{ V.cycMonth=ymd(new Date(Y,M-1+n,1)).slice(0,7); render(true); };
+  const inPeriod=!!(C.days[t]&&C.days[t].flow&&C.days[t].flow!=='spotting')||(m.last&&m.last.end>=ymd(addD(pd(t),-1))&&m.last.end<t&&(dnum(pd(t))-dnum(pd(m.last.start)))<m.plen);
+  const sd=d=>fmtD(d,{month:'short',day:'numeric'});
+  let big, small;
+  if(!m.last){ big='Welcome'; small='Log the first day of your last period to see predictions.'; }
+  else if(C.days[t]&&C.days[t].flow&&C.days[t].flow!=='spotting'){ big=`Period day ${dnum(pd(t))-dnum(pd(m.last.start))+1}`; small=`Cycle day ${m.cycleDay}`; }
+  else if(m.late>0){ big=`${m.late} day${m.late>1?'s':''} late`; small=`Period was expected ${sd(m.next)}`; }
+  else { const n=dnum(pd(m.next))-dnum(pd(t)); big=n===0?'Period expected today':`Period in ${n} day${n>1?'s':''}`; small=`Cycle day ${m.cycleDay}`+(m.fertile.has(t)?' · fertile window':''); }
+  const todayFlow=C.days[t]&&C.days[t].flow;
+  const hero=h('div',{class:'cyc-hero'},
+    h('div',{class:'cyc-ring'+(todayFlow&&todayFlow!=='spotting'?' on':m.fertile.has(t)?' fert':'')},h('div',{class:'cyc-big'},big),h('div',{class:'cyc-small'},small)),
+    h('div',{class:'cyc-acts'},
+      todayFlow?btn('Edit today',()=>{V.cycDay=t;V.cycMonth=t.slice(0,7);render(true)},'btn'):btn(inPeriod?'Log today’s flow':'Period started today',()=>{ setCycDay(t,{flow:'medium'}); V.cycDay=t; V.cycMonth=t.slice(0,7); },'btn primary','plus'),
+      btn('Log symptoms',()=>{V.cycDay=t;V.cycMonth=t.slice(0,7);render(true);setTimeout(()=>{const p=$('.cyc-day');p&&p.scrollIntoView({behavior:'smooth',block:'start'})},30)},'btn')));
+  const stats=h('div',{class:'stats',style:'margin:18px 0 24px'},
+    h('div',{class:'stat'},h('div',{class:'k'},'Next period'),h('div',{class:'v'},m.next?sd(m.late>0?t:m.next):'–'),h('div',{class:'s'},m.next?(m.late>0?'Running late':fmtD(m.next,{weekday:'long'})):'Needs one logged period')),
+    h('div',{class:'stat'},h('div',{class:'k'},'Fertile window'),h('div',{class:'v cyc-sm'},m.fert?`${sd(m.fert[0])} – ${sd(m.fert[1])}`:'–'),h('div',{class:'s'},m.ov?`Ovulation around ${sd(m.ov)}`:' ')),
+    h('div',{class:'stat'},h('div',{class:'k'},'Cycle length'),h('div',{class:'v'},`${m.cyc} days`),h('div',{class:'s'},m.gapsKnown?`Average of your last ${Math.min(6,m.gapsKnown)}`:'Your typical length (set below)')),
+    h('div',{class:'stat'},h('div',{class:'k'},'Period length'),h('div',{class:'v'},`${m.plen} days`),h('div',{class:'s'},m.periods.length?'Average from your logs':'Your typical length')));
+  // calendar
+  const first=new Date(Y,M-1,1), start=sow(first), cells=[];
+  for(let i=0;i<42;i++){ const d=addD(start,i), ds=ymd(d), e=C.days[ds]||{};
+    const cls=['cyc-cell']; if(d.getMonth()!==M-1) cls.push('out'); if(ds===t) cls.push('today'); if(ds===sel) cls.push('sel');
+    if(e.flow&&e.flow!=='spotting') cls.push('per'); else if(e.flow==='spotting') cls.push('spot'); else if(m.predicted.has(ds)) cls.push('pred'); else if(m.ovs.has(ds)) cls.push('ov'); else if(m.fertile.has(ds)) cls.push('fert');
+    cells.push(h('button',{type:'button',class:cls.join(' '),'aria-label':fmtD(ds)+(e.flow?', '+e.flow+' flow':m.predicted.has(ds)?', predicted period':m.ovs.has(ds)?', predicted ovulation':m.fertile.has(ds)?', fertile window':''),'aria-pressed':ds===sel?'true':'false',onclick:()=>{V.cycDay=ds;render(true)}},
+      h('span',{class:'cn'},d.getDate()), (e.sym||e.mood||e.note)?h('i',{class:'cdot'}):null)); }
+  const cal=h('div',{class:'cyc-cal'},
+    h('div',{style:'margin-bottom:8px'},navrow(`${MONTHS[M-1]} ${Y}`,()=>shift(-1),()=>shift(1),()=>{V.cycMonth=t.slice(0,7);V.cycDay=t;render(true)})),
+    h('div',{class:'cyc-grid'},dowOrder().map(x=>h('div',{class:'cyc-dow'},x.slice(0,1))),cells),
+    h('div',{class:'cyc-legend'},[['per','Period'],['pred','Predicted period'],['fert','Fertile window'],['ov','Ovulation'],['spot','Spotting']].map(([c,l])=>h('span',null,h('i',{class:'lg '+c}),l))));
+  // day panel
+  const e=C.days[sel]||{};
+  const chips=(list,key)=>h('div',{class:'cyc-chips'},list.map(x=>{ const on=(e[key]||[]).includes(x); return h('button',{type:'button',class:'cyc-chip'+(on?' on':''),'aria-pressed':on?'true':'false',onclick:()=>{ const l=(e[key]||[]).slice(); const i=l.indexOf(x); if(i>=0) l.splice(i,1); else l.push(x); setCycDay(sel,{[key]:l}); }},x); }));
+  const note=h('textarea',{class:'input',rows:'2',placeholder:'Anything else to remember about this day',oninput:ev=>{ const D=S.cycle.days; const cur=Object.assign({},D[sel]||{}); cur.note=ev.target.value; if(!cur.note.trim()) delete cur.note; if(Object.keys(cur).length) D[sel]=cur; else delete D[sel]; save('cycle',{quiet:true}); }},e.note||'');
+  const dayPanel=h('section',{class:'block cyc-day'},
+    h('div',{class:'block-h'},h('h3',null,sel===t?'Today':fmtD(sel,{weekday:'long',month:'long',day:'numeric'})),sel>t?h('span',{class:'small faint'},'Future day'):null),
+    h('div',{class:'field'},h('span',{class:'lbl'},'Period flow'),h('div',{class:'cyc-chips'},
+      h('button',{type:'button',class:'cyc-chip'+(!e.flow?' on':''),onclick:()=>setCycDay(sel,{flow:''})},'None'),
+      FLOWS.map(([k,l])=>h('button',{type:'button',class:'cyc-chip flow '+k+(e.flow===k?' on':''),'aria-pressed':e.flow===k?'true':'false',onclick:()=>setCycDay(sel,{flow:e.flow===k?'':k})},l)))),
+    h('div',{class:'field'},h('span',{class:'lbl'},'Symptoms'),chips(CYC_SYM,'sym')),
+    h('div',{class:'field'},h('span',{class:'lbl'},'Mood'),chips(CYC_MOOD,'mood')),
+    h('div',{class:'field'},h('label',{class:'lbl'},'Notes'),note));
+  // history
+  const hist=m.periods.slice().reverse().slice(0,12);
+  const history=block('Cycle history',null, hist.length?h('div',{class:'rows'},hist.map(p=>h('div',{class:'row'},h('i',{class:'lg per',style:'flex:none'}),h('span',{class:'grow',style:'flex:1'},fmtD(p.start,{month:'short',day:'numeric',year:'numeric'})),
+      h('span',{class:'small muted num'},`${p.len}-day period`),h('span',{class:'small num',style:'min-width:92px;text-align:right'},p.cycle?`${p.cycle}-day cycle`:'Current')))):h('div',{class:'empty'},'Your past periods will be listed here.'));
+  const settings=block('Your usual cycle',null,
+    h('div',{class:'fields',style:'max-width:420px'},
+      h('div',{class:'field'},h('label',{for:'cycLen'},'Cycle length (days)'),h('input',{class:'input',id:'cycLen',type:'number',min:'15',max:'60',inputmode:'numeric',value:C.avgCycle||28,onchange:ev=>{C.avgCycle=Math.min(60,Math.max(15,parseInt(ev.target.value)||28));save('cycle')}})),
+      h('div',{class:'field'},h('label',{for:'perLen'},'Period length (days)'),h('input',{class:'input',id:'perLen',type:'number',min:'1',max:'14',inputmode:'numeric',value:C.avgPeriod||5,onchange:ev=>{C.avgPeriod=Math.min(14,Math.max(1,parseInt(ev.target.value)||5));save('cycle')}}))),
+    h('p',{class:'small faint',style:'margin:0'},'Used until you’ve logged two periods; after that predictions follow your own average. Predictions and fertile days are estimates, not medical advice, and aren’t reliable for birth control.'));
+  return page('cycle','Cycle','Log your period, symptoms and mood. Only you can see this page, and nothing from it shows anywhere else in the planner.',null,
+    hero, stats, h('div',{class:'grid2 cyc-wrap'},cal,dayPanel), h('div',{class:'grid2',style:'margin-top:28px'},history,settings));
+}
+
 /* Habits & journal */
 function toggleHabit(id,ds){ const l=S.habits.log[ds]=S.habits.log[ds]||[]; const i=l.indexOf(id); if(i>=0) l.splice(i,1); else l.push(id); if(!l.length) delete S.habits.log[ds]; save('habits'); }
 function streak(id){ let d=new Date(); const has=ds=>(S.habits.log[ds]||[]).includes(id); if(!has(ymd(d))) d=addD(d,-1); let n=0; while(has(ymd(d))&&n<2000){ n++; d=addD(d,-1); } return n; }
@@ -1696,7 +1817,7 @@ if(window.matchMedia){ try{ matchMedia('(prefers-color-scheme: dark)').addEventL
 /* ---------- shell ---------- */
 const ROUTES={
   today:['Today','today',pageToday,'Plan'], calendar:['Calendar','calendar',pageCalendar,'Plan'], tasks:['Tasks','tasks',pageTasks,'Plan'], week:['Weekly plan','week',pageWeek,'Plan'], goals:['Yearly goals','goals',pageGoals,'Plan'],
-  finances:['Finances','money',pageMoney,'Track'], habits:['Habits & journal','habits',pageHabits,'Track'], workouts:['Workouts','workouts',pageWorkouts,'Track'], calories:['Calories','calories',pageFood,'Track'],
+  finances:['Finances','money',pageMoney,'Track'], habits:['Habits & journal','habits',pageHabits,'Track'], workouts:['Workouts','workouts',pageWorkouts,'Track'], calories:['Calories','calories',pageFood,'Track'], cycle:['Cycle','cycle',pageCycle,'Track'],
   recipes:['Recipes','recipes',pageRecipes,'Collect'], movies:['Movies','movies',pageMovies,'Collect'],
   appearance:['Appearance','paint',pageAppearance,'Settings']
 };
