@@ -1768,7 +1768,7 @@ const exKey=n=>String(n||'').trim().toLowerCase();
 function lastTime(name,beforeDate,skipId){ const k=exKey(name); const ss=S.workouts.sessions.filter(s=>s.id!==skipId&&(!beforeDate||s.date<=beforeDate)).sort((a,b)=>b.date.localeCompare(a.date));
   for(const s of ss){ const e=(s.exercises||[]).find(x=>exKey(x.name)===k); if(e) return {date:s.date,sets:exSets(e)}; } return null; }
 const setsText=sets=>{ const ss=sets.filter(s=>num(s.reps)||num(s.weight)); if(!ss.length) return ''; const same=ss.every(s=>num(s.reps)===num(ss[0].reps)&&num(s.weight)===num(ss[0].weight));
-  return same?`${ss.length}×${num(ss[0].reps)||'?'}${num(ss[0].weight)?` @ ${num(ss[0].weight)} lb`:''}`:ss.map(s=>`${num(s.reps)||'?'}${num(s.weight)?'@'+num(s.weight):''}`).join(', '); };
+  return same?`${ss.length}×${num(ss[0].reps)||'?'}${num(ss[0].weight)?` @ ${num(ss[0].weight)} lb`:''}`:ss.map(s=>`${num(s.reps)||'?'}${num(s.weight)?'×'+num(s.weight):''}`).join(', ')+(ss.some(s=>num(s.weight))?' lb':''); };
 function setLogField(f,vals){
   const wrap=h('div',{class:'sl-wrap',id:'f-'+f.key});
   const addEx=(e={})=>{ const sets=e.setsLog||e.sets? exSets(e):[{reps:e.reps??'',weight:e.weight??''}];
@@ -1805,18 +1805,18 @@ function editSession(s,defaults={}){
     onDelete:isNew?null:()=>{ W.sessions=W.sessions.filter(x=>x!==s); save('workouts'); }});
 }
 function startRoutine(r,date){
-  const exercises=(r.exercises||[]).map(e=>{ const lt=lastTime(e.name); const n=Math.max(1,parseInt(e.sets)||(lt?lt.sets.length:3));
-    const base=lt?lt.sets:[]; return {name:e.name,setsLog:[...Array(n)].map((_,i)=>({reps:(base[i]||base[base.length-1]||{}).reps??e.reps??'',weight:(base[i]||base[base.length-1]||{}).weight??e.weight??''}))}; });
+  const exercises=(r.exercises||[]).map(e=>{ const lt=lastTime(e.name); const plan=exSets(e); const base=lt?lt.sets:plan; const n=Math.max(1,plan.length||base.length||3);
+    return {name:e.name,setsLog:[...Array(n)].map((_,i)=>{ const src=base[i]||plan[i]||base[base.length-1]||{}; return {reps:src.reps??'',weight:src.weight??''}; })}; });
   editSession(null,{title:r.name,type:r.type||'Strength',date:date||today(),exercises,routineId:r.id});
 }
 const DAYS_FIELD=(cur)=>cur;
 function editRoutine(r){
   const isNew=!r, W=wkEnsure();
-  const data=r?Object.assign({},r,{exercises:(r.exercises||[]).map(e=>({name:e.name,sets:e.sets,reps:e.reps,weight:e.weight}))}):{color:'blue',days:[],type:'Strength'};
+  const data=r?Object.assign({},r,{exercises:(r.exercises||[]).map(e=>({name:e.name,setsLog:exSets(e).map(x=>({reps:x.reps,weight:x.weight}))}))}):{color:'blue',days:[],type:'Strength',exercises:[{name:'',setsLog:[{},{},{}]}]};
   openForm({title:isNew?'New routine':'Edit routine',data,
     fields:[{key:'name',label:'Routine name',required:true,ph:'e.g. Legs, Abs, Arms, Push day'},{key:'type',label:'Type',type:'select',options:WTYPES.map(w=>w[0])},
       {key:'days',label:'Which days',type:'weekdays',full:true},
-      {key:'exercises',label:'Exercises (target sets, reps and starting weight)',type:'exercises',full:true},
+      {key:'exercises',label:'Exercises: add a row for each set with its own reps and weight',type:'setlog',full:true},
       {key:'color',label:'Color',type:'color',full:true},{key:'notes',label:'Notes',type:'textarea',full:true,rows:2}],
     onSave:o=>{ if(isNew) W.routines.push(Object.assign({id:uid()},o)); else Object.assign(r,o); save('workouts'); },
     onDelete:isNew?null:()=>{ W.routines=W.routines.filter(x=>x!==r); save('workouts'); }});
@@ -1878,7 +1878,7 @@ function pageWorkouts(){
       W.routines.length?h('div',{class:'acct-grid'},W.routines.map(r=>{ const last=ss.find(s=>s.routineId===r.id);
         return h('div',{class:'acct wk-card t-'+(r.color||'blue')},
           h('div',{class:'acct-top'},h('span',{class:'acct-name'},h('span',{class:'dot',style:'margin-right:8px'}),r.name),h('span',{class:'small muted'},(r.days||[]).length?(r.days.length===7?'Every day':[...r.days].sort((a,b)=>((a-wkStart()+7)%7)-((b-wkStart()+7)%7)).map(d=>DOW_ALL[d]).join(', ')):'Any day')),
-          (r.exercises||[]).length?h('div',{class:'wk-exl'},r.exercises.map(e=>{ const lt=lastTime(e.name); return h('div',{class:'wk-exr'},h('span',null,e.name),h('span',{class:'small muted num'},lt?setsText(lt.sets):[e.sets&&e.reps?`${e.sets}×${e.reps}`:'',e.weight?`@ ${e.weight} lb`:''].filter(Boolean).join(' '))); })):h('div',{class:'small faint'},'No exercises yet'),
+          (r.exercises||[]).length?h('div',{class:'wk-exl'},r.exercises.map(e=>{ const lt=lastTime(e.name); return h('div',{class:'wk-exr'},h('span',null,e.name),h('span',{class:'small muted num'},lt?setsText(lt.sets):setsText(exSets(e)))); })):h('div',{class:'small faint'},'No exercises yet'),
           h('div',{class:'small faint'},last?`Last done ${fmtD(last.date,{month:'short',day:'numeric'})}`:'Not done yet'),
           h('div',{style:'display:flex;gap:6px'},btn('Start',()=>startRoutine(r),'btn primary sm'),btn('Edit',()=>editRoutine(r),'btn ghost sm'))); })):
       h('div',{class:'empty'},'Create a routine for each focus, like Legs, Abs or Arms. Add its exercises with target sets, reps and weight, and pick which days you do it.'))];
