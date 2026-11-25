@@ -306,7 +306,7 @@ td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .calm .month .cell.out .dnum{color:var(--faint)}
 .calm .dnum{align-self:center;width:22px;height:22px;font-size:12px;margin:2px 0 1px;flex:none}
 .calm .cell.today .dnum{background:var(--accent);color:var(--on-accent)}
-.calm .chip{background:var(--tf);color:var(--bg);font-size:10.5px;line-height:15px;padding:0 3px;border-radius:3px;font-weight:500;flex:none}
+.calm .chip{background:var(--solid,var(--tf));color:var(--onc,var(--bg));font-size:10.5px;line-height:15px;padding:0 3px;border-radius:3px;font-weight:500;flex:none}
 .calm .chip .tm{display:none}
 .calm .chip.task{background:transparent;color:var(--muted);border:1px dashed var(--line);line-height:13px}
 .calm .more{font-size:10px;padding-left:3px;line-height:13px}
@@ -452,6 +452,13 @@ table.hgrid td.hname{text-align:left;padding-right:12px;white-space:nowrap;font-
 .sw input:checked + span{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--tf)}
 .sw-auto span{width:auto;height:24px;padding:0 8px;font-size:12px;line-height:20px;background:var(--side);border:2px dashed var(--faint);color:var(--muted)}
 .sw-auto input:checked + span{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--fg);border-style:solid}
+.hex-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.hex-lbl{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.hex-prev{width:24px;height:24px;border-radius:6px;flex:none;border:1px solid var(--line)}
+.hex-prev.empty{background:repeating-linear-gradient(45deg,var(--side) 0 4px,var(--bg) 4px 8px)!important}
+.hex-in{width:110px;font-family:ui-monospace,Menlo,monospace;text-transform:uppercase}
+.hex-in.bad{border-color:var(--bad)}
+.hex-pick{width:36px;height:32px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--bg);cursor:pointer;flex:none}
 .sw input:focus-visible + span{outline:2px solid var(--accent);outline-offset:3px}
 .modal-acts{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .modal-acts div{display:flex;gap:8px}
@@ -567,6 +574,13 @@ const addD=(d,n)=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.
 const today=()=>ymd(new Date());
 const wkStart=()=>(S.prefs&&S.prefs.weekStart===1)?1:0; /* 0 = Sunday (default), 1 = Monday */
 const sow=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());return addD(x,-((x.getDay()-wkStart()+7)%7))};
+const HEX_RE=/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+function normHex(v){ const m=HEX_RE.exec(String(v||'').trim()); if(!m) return ''; let x=m[1].toLowerCase(); if(x.length===3) x=x.split('').map(c=>c+c).join(''); return '#'+x; }
+function hexCss(){ const set=new Set(); const add=c=>{ if(c&&c[0]==='#'&&normHex(c)) set.add(c); };
+  (S.calendar.cals||[]).forEach(c=>add(c.color)); (S.calendar.events||[]).forEach(e=>add(e.color)); ((S.habits&&S.habits.list)||[]).forEach(x=>add(x.color));
+  let css=''; for(const c of set){ const n=parseInt(c.slice(1),16), r=n>>16, g=(n>>8)&255, b=n&255, lum=(0.299*r+0.587*g+0.114*b)/255;
+    css+=`.t-${CSS.escape(c)}{--tb:color-mix(in srgb,${c} 24%,var(--bg));--tf:color-mix(in srgb,${c} 78%,var(--fg));--solid:${c};--onc:${lum>0.62?'#1d1c1a':'#ffffff'}}\n`; }
+  let st=document.getElementById('hexColors'); if(!st){ st=document.createElement('style'); st.id='hexColors'; document.head.append(st); } if(st.textContent!==css) st.textContent=css; }
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DOW_ALL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const dowName=d=>DOW_ALL[d.getDay()];
@@ -693,8 +707,16 @@ function buildField(f,vals){
   if(f.type==='textarea') ctl=h('textarea',{class:'input',id,rows:f.rows||3,placeholder:f.ph||null},v||'');
   else if(f.type==='lines') ctl=h('textarea',{class:'input',id,rows:f.rows||5,placeholder:f.ph||null},(v||[]).map(x=>typeof x==='string'?x:x.t).join('\n'));
   else if(f.type==='select') ctl=h('select',{class:'input',id},f.options.map(o=>{const [ov,ol]=Array.isArray(o)?o:[o,o]; return h('option',{value:ov,selected:String(v??f.def??'')===String(ov)},ol)}));
-  else if(f.type==='color'){ const cur=f.auto?(v||'auto'):(v||f.def||'blue');
-    return h('div',{class:cls}, h('span',{class:'lbl'},f.label), h('div',{class:'swatches',role:'radiogroup','aria-label':f.label}, f.auto&&h('label',{class:'sw sw-auto'},h('input',{type:'radio',name:f.key,value:'auto',checked:cur==='auto','aria-label':f.auto}),h('span',null,f.auto)), COLORS.map(c=>h('label',{class:'sw t-'+c,title:c}, h('input',{type:'radio',name:f.key,value:c,checked:c===cur,'aria-label':c}), h('span'))))); }
+  else if(f.type==='color'){ const cur=f.auto?(v||'auto'):(v||f.def||'blue'); const isHex=HEX_RE.test(cur);
+    const code=h('input',{class:'input hex-in',id:'hex-'+f.key,placeholder:'#4285F4',maxlength:'7',autocomplete:'off',spellcheck:'false',value:isHex?cur.toUpperCase():'','aria-label':'Color code'});
+    const pick=h('input',{type:'color',class:'hex-pick',value:isHex?normHex(cur):'#4285f4','aria-label':'Pick a color'});
+    const prev=h('span',{class:'hex-prev'});
+    const sync=()=>{ const hx=normHex(code.value); prev.style.background=hx||'transparent'; prev.classList.toggle('empty',!hx); code.classList.toggle('bad',!!code.value.trim()&&!hx);
+      if(hx){ pick.value=hx; code.closest('.field')?.querySelectorAll(`input[name="${f.key}"]`).forEach(r=>r.checked=false); } };
+    code.addEventListener('input',sync); pick.addEventListener('input',()=>{ code.value=pick.value.toUpperCase(); sync(); });
+    const sw=h('div',{class:'swatches',role:'radiogroup','aria-label':f.label,onchange:()=>{ code.value=''; sync(); }}, f.auto&&h('label',{class:'sw sw-auto'},h('input',{type:'radio',name:f.key,value:'auto',checked:cur==='auto','aria-label':f.auto}),h('span',null,f.auto)), COLORS.map(c=>h('label',{class:'sw t-'+c,title:c}, h('input',{type:'radio',name:f.key,value:c,checked:c===cur,'aria-label':c}), h('span'))));
+    setTimeout(sync,0);
+    return h('div',{class:cls}, h('span',{class:'lbl'},f.label), sw, h('div',{class:'hex-row'},h('label',{for:'hex-'+f.key,class:'hex-lbl'},'Or color code'),prev,code,pick)); }
   else if(f.type==='stars'){ const hid=h('input',{type:'hidden',id,value:v||0}); const holder=h('div');
     const draw=()=>holder.replaceChildren(stars(num(hid.value),n=>{hid.value=n;draw();}));
     draw(); return h('div',{class:cls}, h('span',{class:'lbl'},f.label), holder, hid); }
@@ -758,7 +780,7 @@ function repeatField(f,vals){
 }
 function readField(form,f){
   if(f.type==='repeat'){ const el=form.querySelector('#f-repeat'); return el&&el._read?el._read():{repeat:'none',rr:null}; }
-  if(f.type==='color'){ const r=form.querySelector(`input[name="${f.key}"]:checked`); const v=r?r.value:(f.def||'blue'); return v==='auto'?'':v; }
+  if(f.type==='color'){ const hx=normHex((form.querySelector('#hex-'+f.key)||{}).value||''); if(hx) return hx; const r=form.querySelector(`input[name="${f.key}"]:checked`); const v=r?r.value:(f.def||'blue'); return v==='auto'?'':v; }
   if(f.type==='exercises') return [...form.querySelectorAll('[data-ex]')].map(r=>{ const g=k=>r.querySelector(`[data-k="${k}"]`).value; return {name:g('name').trim(),sets:num(g('sets'))||'',reps:num(g('reps'))||'',weight:num(g('weight'))||''}; }).filter(x=>x.name);
   if(f.type==='note') return '';
   if(f.type==='file'){ const el=form.querySelector('#f-'+f.key); return el&&el.files&&el.files[0]||''; }
@@ -1555,6 +1577,7 @@ function render(force){
   pendingRender=false;
   ensureCals();
   applyPrefs();
+  hexCss();
   renderSide();
   const r=route(); document.querySelector('.app').classList.toggle('calmob',r==='calendar'&&isCalMob()); $('#main').replaceChildren(ROUTES[r][2]());
 }
