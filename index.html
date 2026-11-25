@@ -338,6 +338,27 @@ td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .rr-end .input{width:auto;flex:none}
 .rr-inline{display:inline-flex;align-items:center;gap:8px;color:var(--muted)}
 .rr-end input:disabled{opacity:.5}
+/* Finances extras */
+.fin-tabs{margin-bottom:16px;max-width:100%;overflow-x:auto}
+.fin-tabs .seg{flex-wrap:nowrap}
+.fin-tabs .seg button{white-space:nowrap}
+.row.bill{gap:12px}
+.bill-day{display:flex;flex-direction:column;align-items:center;width:34px;flex:none;font-size:10.5px;color:var(--muted);line-height:1.1;text-transform:uppercase}
+.bill-day b{font-size:17px;color:var(--fg);font-weight:600}
+.row.bill .title{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:1px}
+.bill-name{font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bill-sub{font-size:12px}
+.row.bill.done .bill-name{text-decoration:line-through;color:var(--muted)}
+.bill-amt{white-space:nowrap;min-width:76px;text-align:right;font-weight:500}
+.acct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.acct{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--card);color:var(--fg);min-width:0}
+button.acct:hover{border-color:var(--faint)}
+.acct-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.acct-name{font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.linkish{border:0;background:transparent;padding:0;color:var(--fg);text-align:left}
+.acct-bal{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.goal .goalbar>i{background:var(--solid,var(--tf))}
+@media (max-width:640px){ .row.bill{gap:8px} .row.bill .tag{display:none} .acct-grid{grid-template-columns:minmax(0,1fr)} }
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -577,7 +598,7 @@ const sow=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());return 
 const HEX_RE=/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 function normHex(v){ const m=HEX_RE.exec(String(v||'').trim()); if(!m) return ''; let x=m[1].toLowerCase(); if(x.length===3) x=x.split('').map(c=>c+c).join(''); return '#'+x; }
 function hexCss(){ const set=new Set(); const add=c=>{ if(c&&c[0]==='#'&&normHex(c)) set.add(c); };
-  (S.calendar.cals||[]).forEach(c=>add(c.color)); (S.calendar.events||[]).forEach(e=>add(e.color)); ((S.habits&&S.habits.list)||[]).forEach(x=>add(x.color));
+  (S.calendar.cals||[]).forEach(c=>add(c.color)); (S.calendar.events||[]).forEach(e=>add(e.color)); ((S.habits&&S.habits.list)||[]).forEach(x=>add(x.color)); ((S.money&&S.money.goals)||[]).forEach(x=>add(x.color));
   let css=''; for(const c of set){ const n=parseInt(c.slice(1),16), r=n>>16, g=(n>>8)&255, b=n&255, lum=(0.299*r+0.587*g+0.114*b)/255;
     css+=`.t-${CSS.escape(c)}{--tb:color-mix(in srgb,${c} 24%,var(--bg));--tf:color-mix(in srgb,${c} 78%,var(--fg));--solid:${c};--onc:${lum>0.62?'#1d1c1a':'#ffffff'}}\n`; }
   let st=document.getElementById('hexColors'); if(!st){ st=document.createElement('style'); st.id='hexColors'; document.head.append(st); } if(st.textContent!==css) st.textContent=css; }
@@ -1281,7 +1302,129 @@ function editBudgets(){
     fields:EXP_CATS.map(c=>({key:c,label:c,type:'number',ph:'No budget'})),
     onSave:o=>{ const b={}; for(const c of EXP_CATS) if(num(o[c])>0) b[c]=num(o[c]); S.money.budgets=b; save('money'); }});
 }
+/* Finances: bills, accounts, credit cards, money goals */
+function moneyEnsure(){ const M=S.money; for(const k of ['bills','accounts','cards','goals']) if(!Array.isArray(M[k])) M[k]=[]; if(!M.paid||typeof M.paid!=='object') M.paid={}; return M; }
+const BILL_KINDS=[['bill','Bill'],['tithe','Tithe / giving'],['savings','Savings transfer'],['subscription','Subscription'],['loan','Loan payment'],['insurance','Insurance'],['other','Other']];
+const BILL_COLOR={bill:'blue',tithe:'purple',savings:'green',subscription:'pink',loan:'orange',insurance:'brown',other:'gray',card:'red'};
+const ACCT_TYPES=['Checking','Savings','High-yield savings','Cash','Investment','Retirement','Other'];
+const ord=n=>{ const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+const dueIn=(ym,day)=>{ const [y,m]=ym.split('-').map(Number); const dim=new Date(y,m,0).getDate(); return `${ym}-${pad(Math.min(Math.max(1,num(day)||1),dim))}`; };
+const monthIncome=ym=>S.money.tx.filter(x=>x.type==='income'&&x.date&&x.date.startsWith(ym)).reduce((s,x)=>s+num(x.amount),0);
+function billAmount(b,ym){ return b.kind==='tithe'&&num(b.pct)>0?Math.round(monthIncome(ym)*num(b.pct))/100:num(b.amount); }
+const isPaid=(ym,id)=>(S.money.paid[ym]||[]).includes(id);
+function togglePaid(ym,id){ const M=S.money; const l=M.paid[ym]=M.paid[ym]||[]; const i=l.indexOf(id); if(i>=0) l.splice(i,1); else l.push(id); if(!l.length) delete M.paid[ym]; save('money'); }
+function acctOpts(){ return [['','None'],...S.money.accounts.map(a=>[a.id,a.name])]; }
+function editBill(b,defaults={}){
+  const isNew=!b, M=moneyEnsure();
+  openForm({title:isNew?'New monthly bill':'Edit bill',data:b?Object.assign({},b,{autopay:b.autopay?'yes':'no'}):Object.assign({kind:'bill',due:1,autopay:'no'},defaults),
+    fields:[{key:'name',label:'Name',full:true,required:true,ph:'e.g. Rent, Phone, Church tithe'},{key:'kind',label:'Type',type:'select',options:BILL_KINDS},
+      {key:'amount',label:'Amount',type:'number',ph:'0.00'},{key:'due',label:'Due day of the month',type:'number',ph:'1 to 31'},
+      {key:'pct',label:'Or % of income (tithe)',type:'number',ph:'e.g. 10',hint:'Works out the amount from the income you log each month'},
+      {key:'account',label:'Paid from / saved to',type:'select',options:acctOpts()},{key:'autopay',label:'Autopay',type:'select',options:[['no','No'],['yes','Yes']]},
+      {key:'note',label:'Note',full:true}],
+    onSave:o=>{ o.amount=Math.abs(num(o.amount)); o.due=Math.min(31,Math.max(1,Math.round(num(o.due))||1)); o.pct=Math.abs(num(o.pct))||''; o.autopay=o.autopay==='yes';
+      if(isNew) M.bills.push(Object.assign({id:uid()},o)); else Object.assign(b,o); save('money'); },
+    onDelete:isNew?null:()=>{ M.bills=M.bills.filter(x=>x!==b); save('money'); }});
+}
+function editAccount(a){
+  const isNew=!a, M=moneyEnsure();
+  openForm({title:isNew?'New account':'Edit account',data:a||{type:'Savings'},
+    fields:[{key:'name',label:'Account name',full:true,required:true,ph:'e.g. Emergency fund'},{key:'bank',label:'Bank',ph:'e.g. Chase, Ally'},{key:'type',label:'Type',type:'select',options:ACCT_TYPES},
+      {key:'balance',label:'Current balance',type:'number',ph:'0.00'},{key:'note',label:'Note',ph:'Last 4 digits, purpose…'}],
+    onSave:o=>{ o.balance=num(o.balance); o.updated=today(); if(isNew) M.accounts.push(Object.assign({id:uid()},o)); else Object.assign(a,o); save('money'); },
+    onDelete:isNew?null:()=>{ M.accounts=M.accounts.filter(x=>x!==a); M.bills.forEach(b=>{ if(b.account===a.id) b.account=''; }); M.goals.forEach(g=>{ if(g.account===a.id) g.account=''; }); save('money'); }});
+}
+function editCard(c){
+  const isNew=!c, M=moneyEnsure();
+  openForm({title:isNew?'New credit card':'Edit credit card',data:c||{due:15},
+    fields:[{key:'name',label:'Card name',full:true,required:true,ph:'e.g. Chase Freedom'},{key:'balance',label:'Balance owed',type:'number',ph:'0.00'},{key:'limit',label:'Credit limit',type:'number',ph:'0.00'},
+      {key:'minPay',label:'Minimum payment',type:'number',ph:'0.00'},{key:'due',label:'Due day of the month',type:'number',ph:'1 to 31'},
+      {key:'apr',label:'APR %',type:'number',ph:'e.g. 24.99'},{key:'account',label:'Paid from',type:'select',options:acctOpts()},{key:'note',label:'Note',full:true}],
+    onSave:o=>{ for(const k of ['balance','limit','minPay','apr']) o[k]=Math.abs(num(o[k])); o.due=Math.min(31,Math.max(1,Math.round(num(o.due))||1)); o.updated=today();
+      if(isNew) M.cards.push(Object.assign({id:uid()},o)); else Object.assign(c,o); save('money'); },
+    onDelete:isNew?null:()=>{ M.cards=M.cards.filter(x=>x!==c); save('money'); }});
+}
+function editMoneyGoal(g){
+  const isNew=!g, M=moneyEnsure();
+  openForm({title:isNew?'New money goal':'Edit money goal',data:g||{color:'green'},
+    fields:[{key:'name',label:'Goal',full:true,required:true,ph:'e.g. Emergency fund, Trip to Japan, Pay off card'},{key:'target',label:'Target amount',type:'number',required:true,ph:'0.00'},
+      {key:'saved',label:'Saved so far',type:'number',ph:'0.00'},{key:'by',label:'Target date',type:'date'},{key:'account',label:'Linked account',type:'select',options:acctOpts(),hint:'Uses that account’s balance as “saved”'},
+      {key:'color',label:'Color',type:'color',full:true}],
+    onSave:o=>{ o.target=Math.abs(num(o.target)); o.saved=Math.abs(num(o.saved)); if(isNew) M.goals.push(Object.assign({id:uid()},o)); else Object.assign(g,o); save('money'); },
+    onDelete:isNew?null:()=>{ M.goals=M.goals.filter(x=>x!==g); save('money'); }});
+}
+function addToGoal(g){
+  openForm({title:'Add money to '+g.name,saveLabel:'Add',fields:[{key:'amt',label:'Amount',type:'number',required:true,ph:'0.00',full:true}],
+    onSave:o=>{ g.saved=Math.max(0,num(g.saved)+num(o.amt)); save('money'); toast(`${fmtM(num(o.amt))} added`); }});
+}
+const goalSaved=g=>{ const a=g.account&&S.money.accounts.find(x=>x.id===g.account); return a?num(a.balance):num(g.saved); };
+function moneyBills(ym){
+  const M=S.money, t=today(), cur=ym===t.slice(0,7);
+  const items=[...M.bills.map(b=>({b,card:false,date:dueIn(ym,b.due),amt:billAmount(b,ym)})),...M.cards.map(c=>({b:c,card:true,date:dueIn(ym,c.due),amt:num(c.minPay)}))].sort((x,y)=>x.date.localeCompare(y.date));
+  const total=items.reduce((s,x)=>s+x.amt,0), paid=items.filter(x=>isPaid(ym,x.b.id)).reduce((s,x)=>s+x.amt,0);
+  const tith=M.bills.filter(b=>b.kind==='tithe').reduce((s,b)=>s+billAmount(b,ym),0), sav=M.bills.filter(b=>b.kind==='savings').reduce((s,b)=>s+billAmount(b,ym),0);
+  const row=x=>{ const p=isPaid(ym,x.b.id), late=!p&&x.date<t, days=Math.round((pd(x.date)-pd(t))/864e5);
+    const when=p?'Paid':late?'Overdue':cur&&days===0?'Due today':cur&&days>0&&days<=7?`Due in ${days} day${days>1?'s':''}`:`Due the ${ord(pd(x.date).getDate())}`;
+    const kind=x.card?'card':x.b.kind||'bill';
+    return h('div',{class:'row bill'+(p?' done':'')}, chk(p,()=>togglePaid(ym,x.b.id),(p?'Mark unpaid: ':'Mark paid: ')+x.b.name),
+      h('span',{class:'bill-day num'},h('b',null,pd(x.date).getDate()),MONTHS[pd(x.date).getMonth()].slice(0,3)),
+      h('button',{class:'title grow',style:'flex:1;min-width:0',onclick:()=>x.card?editCard(x.b):editBill(x.b)},h('span',{class:'bill-name'},x.b.name),
+        h('span',{class:'bill-sub '+(late?'over':'muted')},when+(x.b.autopay?' · Autopay':'')+(kind==='tithe'&&num(x.b.pct)?` · ${x.b.pct}% of income`:'')+(x.card?' · minimum':''))),
+      tag(x.card?'Credit card':(BILL_KINDS.find(k=>k[0]===kind)||[,'Bill'])[1],BILL_COLOR[kind]),
+      h('span',{class:'num bill-amt'},fmtM(x.amt))); };
+  return [h('div',{class:'stats',style:'margin-bottom:22px'},
+      h('div',{class:'stat'},h('div',{class:'k'},'Bills this month'),h('div',{class:'v'},fmtM(total)),h('div',{class:'s'},`${items.length} item${items.length===1?'':'s'}`)),
+      h('div',{class:'stat'},h('div',{class:'k'},'Paid'),h('div',{class:'v pos'},fmtM(paid))),
+      h('div',{class:'stat'},h('div',{class:'k'},'Still to pay'),h('div',{class:'v '+(items.some(x=>!isPaid(ym,x.b.id)&&x.date<t)?'over':'')},fmtM(total-paid))),
+      h('div',{class:'stat'},h('div',{class:'k'},'Tithe & giving'),h('div',{class:'v'},fmtM(tith)),h('div',{class:'s'},`Savings transfers ${fmtM(sav)}`))),
+    block('Monthly bills',h('div',{style:'display:flex;gap:6px'},btn('Credit card',()=>editCard(null),'btn ghost sm','plus'),btn('Bill',()=>editBill(null),'btn sm','plus')),
+      items.length?h('div',{class:'rows'},items.map(row)):h('div',{class:'empty'},'Add your monthly bills, tithe and savings transfers. Each one comes back every month with its own Paid checkbox.'))];
+}
+function moneyAccounts(){
+  const M=S.money, types={}; M.accounts.forEach(a=>types[a.type||'Other']=(types[a.type||'Other']||0)+num(a.balance));
+  const total=M.accounts.reduce((s,a)=>s+num(a.balance),0), debt=M.cards.reduce((s,c)=>s+num(c.balance),0);
+  return [h('div',{class:'stats',style:'margin-bottom:22px'},
+      h('div',{class:'stat'},h('div',{class:'k'},'Total in accounts'),h('div',{class:'v pos'},fmtM(total)),h('div',{class:'s'},`${M.accounts.length} account${M.accounts.length===1?'':'s'}`)),
+      ...Object.entries(types).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,v])=>h('div',{class:'stat'},h('div',{class:'k'},k),h('div',{class:'v'},fmtM(v)))),
+      h('div',{class:'stat'},h('div',{class:'k'},'After card debt'),h('div',{class:'v '+(total-debt<0?'over':'')},fmtM(total-debt)))),
+    block('Bank & savings accounts',btn('Account',()=>editAccount(null),'btn sm','plus'),
+      M.accounts.length?h('div',{class:'acct-grid'},M.accounts.map(a=>h('button',{type:'button',class:'acct',onclick:()=>editAccount(a)},
+        h('div',{class:'acct-top'},h('span',{class:'acct-name'},a.name),tag(a.type||'Other',a.type&&/sav/i.test(a.type)?'green':a.type==='Checking'?'blue':a.type==='Investment'||a.type==='Retirement'?'purple':'gray')),
+        h('div',{class:'acct-bal num'},fmtM(a.balance)),
+        h('div',{class:'small muted'},[a.bank,a.note].filter(Boolean).join(' · ')||' '),
+        h('div',{class:'small faint'},a.updated?'Updated '+fmtD(a.updated,{month:'short',day:'numeric'}):'')))):h('div',{class:'empty'},'Add your checking, savings and other accounts to see everything in one place.'))];
+}
+function moneyCards(){
+  const M=S.money, debt=M.cards.reduce((s,c)=>s+num(c.balance),0), lim=M.cards.reduce((s,c)=>s+num(c.limit),0), minp=M.cards.reduce((s,c)=>s+num(c.minPay),0);
+  return [h('div',{class:'stats',style:'margin-bottom:22px'},
+      h('div',{class:'stat'},h('div',{class:'k'},'Total card balance'),h('div',{class:'v '+(debt?'over':'')},fmtM(debt))),
+      h('div',{class:'stat'},h('div',{class:'k'},'Credit used'),h('div',{class:'v'},lim?Math.round(debt/lim*100)+'%':'–'),h('div',{class:'s'},lim?`of ${fmtM(lim)} limit`:'Add limits to see this')),
+      h('div',{class:'stat'},h('div',{class:'k'},'Minimum payments'),h('div',{class:'v'},fmtM(minp)),h('div',{class:'s'},'each month'))),
+    block('Credit cards',btn('Credit card',()=>editCard(null),'btn sm','plus'),
+      M.cards.length?h('div',{class:'acct-grid'},M.cards.map(c=>{ const u=num(c.limit)?num(c.balance)/num(c.limit)*100:0;
+        return h('button',{type:'button',class:'acct',onclick:()=>editCard(c)},
+          h('div',{class:'acct-top'},h('span',{class:'acct-name'},c.name),h('span',{class:'small muted'},`Due the ${ord(num(c.due)||1)}`)),
+          h('div',{class:'acct-bal num'},fmtM(c.balance)),
+          num(c.limit)?h('div',null,h('div',{class:'bar'+(u>30?' over':' good')},h('i',{style:`width:${Math.min(100,u)}%`})),h('div',{class:'small muted',style:'margin-top:4px'},`${Math.round(u)}% of ${fmtM(c.limit)} limit`)):null,
+          h('div',{class:'small faint'},[num(c.minPay)?`Min ${fmtM(c.minPay)}`:'',num(c.apr)?`${c.apr}% APR`:''].filter(Boolean).join(' · ')||' ')); })):h('div',{class:'empty'},'Add your credit cards to track balances, limits and due dates. Their minimum payments also show in Bills.'),
+      M.cards.length?h('p',{class:'small faint',style:'margin:4px 0 0'},'Tip: keeping each card under 30% of its limit is better for your credit score.'):null)];
+}
+function moneyGoals(){
+  const M=S.money, t=today();
+  return [block('Money goals',btn('Goal',()=>editMoneyGoal(null),'btn sm','plus'),
+    M.goals.length?h('div',{class:'acct-grid'},M.goals.map(g=>{ const sv=goalSaved(g), tg=num(g.target), p=tg?Math.min(100,sv/tg*100):0;
+      const months=g.by&&g.by>t?Math.max(1,(pd(g.by).getFullYear()-new Date().getFullYear())*12+pd(g.by).getMonth()-new Date().getMonth()):0;
+      const per=months&&tg>sv?(tg-sv)/months:0;
+      return h('div',{class:'acct goal t-'+(g.color||'green')},
+        h('div',{class:'acct-top'},h('button',{type:'button',class:'acct-name linkish',onclick:()=>editMoneyGoal(g)},g.name),h('span',{class:'small muted num'},Math.round(p)+'%')),
+        h('div',{class:'acct-bal num'},fmtM(sv),h('span',{class:'small muted'},' of '+fmtM(tg))),
+        h('div',{class:'bar goalbar'},h('i',{style:`width:${p}%`})),
+        h('div',{class:'small muted'},p>=100?'Goal reached!':per?`Save ${fmtM(per)} a month to reach it by ${fmtD(g.by,{month:'short',year:'numeric'})}`:g.by?`Target ${fmtD(g.by)}`:'No target date'),
+        h('div',{style:'display:flex;gap:6px;margin-top:2px'},g.account?h('span',{class:'small faint'},'Linked to '+((M.accounts.find(a=>a.id===g.account)||{}).name||'account')):btn('Add money',()=>addToGoal(g),'btn sm','plus'),btn('Edit',()=>editMoneyGoal(g),'btn ghost sm'))); })):
+      h('div',{class:'empty'},'Set savings goals, like an emergency fund or a trip, and watch them fill up.'))];
+}
 function pageMoney(){
+  moneyEnsure(); const tab=V.moneyTab||'overview';
   const m=V.money; const [Y,M]=m.split('-').map(Number);
   const tx=S.money.tx.filter(x=>x.date&&x.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date));
   const inc=tx.filter(x=>x.type==='income').reduce((s,x)=>s+num(x.amount),0);
@@ -1290,8 +1433,15 @@ function pageMoney(){
   const B=S.money.budgets; const cats=[...new Set([...Object.keys(B),...Object.keys(byCat)])].sort((a,b)=>(byCat[b]||0)-(byCat[a]||0));
   const totalBudget=Object.values(B).reduce((s,v)=>s+num(v),0);
   const shift=n=>{ const d=new Date(Y,M-1+n,1); V.money=ymd(d).slice(0,7); render(true); };
-  return page('money','Finances','Track what comes in and goes out each month, and see how you’re doing against your budgets.',[btn('Budgets',editBudgets,'btn'),btn('Add transaction',()=>editTx(null,{date:m===today().slice(0,7)?today():m+'-01'}),'btn primary','plus')],
-    h('div',{style:'margin-bottom:18px'},navrow(`${MONTHS[M-1]} ${Y}`,()=>shift(-1),()=>shift(1),()=>{V.money=today().slice(0,7);render(true)})),
+  const tabs=h('div',{class:'fin-tabs'},seg([['overview','Spending'],['bills','Bills'],['accounts','Accounts'],['cards','Credit cards'],['goals','Goals']],tab,v=>{V.moneyTab=v;render(true)}));
+  const nav=h('div',{style:'margin-bottom:18px'},navrow(`${MONTHS[M-1]} ${Y}`,()=>shift(-1),()=>shift(1),()=>{V.money=today().slice(0,7);render(true)}));
+  const head=[btn('Budgets',editBudgets,'btn'),btn('Add transaction',()=>editTx(null,{date:m===today().slice(0,7)?today():m+'-01'}),'btn primary','plus')];
+  const sub='Your spending, monthly bills, accounts, credit cards and savings goals.';
+  if(tab==='bills') return page('money','Finances',sub,head,tabs,nav,moneyBills(m));
+  if(tab==='accounts') return page('money','Finances',sub,head,tabs,moneyAccounts());
+  if(tab==='cards') return page('money','Finances',sub,head,tabs,moneyCards());
+  if(tab==='goals') return page('money','Finances',sub,head,tabs,moneyGoals());
+  return page('money','Finances',sub,head,tabs,nav,
     h('div',{class:'stats',style:'margin-bottom:28px'},
       h('div',{class:'stat'},h('div',{class:'k'},'Income'),h('div',{class:'v pos'},fmtM(inc))),
       h('div',{class:'stat'},h('div',{class:'k'},'Spending'),h('div',{class:'v'},fmtM(exp)),totalBudget?h('div',{class:'s'},`of ${fmtM(totalBudget)} budgeted`):null),
