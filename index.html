@@ -268,6 +268,21 @@ td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .weekgrid.oneday{grid-template-columns:52px minmax(0,1fr);min-width:0}
 .wg-h.left{text-align:left;padding-left:12px}
 .cal-layout.nopanel{grid-template-columns:minmax(0,1fr)}
+/* Calendar fills the screen */
+.app{--tb:0px}
+.app.collapsed{--tb:47px}
+.page.calpage{display:flex;flex-direction:column;height:calc(100dvh - var(--tb) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));min-height:460px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.calpage .cal-toolbar{flex:none;margin-bottom:10px;padding-bottom:10px}
+.calpage .cal-layout{flex:1;min-height:0;align-items:stretch}
+.calpage .cal-main{min-width:0;min-height:0;display:flex;flex-direction:column}
+.calpage .month{flex:1;min-height:0;grid-template-rows:auto;grid-auto-rows:minmax(0,1fr)}
+.calpage .month .cell{min-height:0;overflow:hidden}
+.calpage .weekgrid-wrap{flex:1;min-height:0;overflow:auto}
+.calpage .wg-h{position:sticky;top:0;z-index:3;background:var(--bg)}
+.calpage .cal-panel{overflow:auto}
+@media (max-width:1100px){ .calpage .cal-layout{display:flex;flex-direction:column;gap:10px} .calpage .cal-main{flex:1} .calpage .cal-panel{flex:none;max-height:40%} }
+@media (max-width:820px){ .app{--tb:47px} .page.calpage{padding-top:8px;padding-bottom:6px;padding-left:max(6px,env(safe-area-inset-left,0px));padding-right:max(6px,env(safe-area-inset-right,0px))} .calpage .cal-toolbar{gap:4px;margin-bottom:6px;padding-bottom:6px} }
+@media (max-width:640px){ .weekgrid{min-width:0;grid-template-columns:38px repeat(7,minmax(0,1fr))} .weekgrid.oneday{grid-template-columns:44px minmax(0,1fr)} .wg-h{padding:6px 2px;font-size:11px} .wg-h b{font-size:16px} .wg-ev{font-size:10.5px;padding:1px 3px;left:1px;right:1px;border-left-width:2px} .wg-hours div{font-size:9.5px;padding-right:3px} .wg-allday .chip{font-size:10px;padding:0 2px} }
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -772,7 +787,7 @@ function pageCalendar(){
           h('button',{type:'button',class:'btn sm'+(V.bgPick?' on':''),id:'bgBtn','aria-haspopup':'dialog','aria-expanded':V.bgPick?'true':'false',onclick:()=>{V.bgPick=!V.bgPick;V.pick=null;render(true)}},ic('paint'),h('span',{class:'bgp-label'},'Background')),
           V.bgPick?calBgPopover():null), seg([['day','Day'],['week','Week'],['month','Month']],mode,v=>{c.mode=v;render(true)}), btn('New event',()=>editEvent(null,{date:newDate}),'btn primary sm','plus'))),
     h('div',{class:'cal-layout'+(panelOpen?'':' nopanel')}, panelOpen?calPanel():null,
-      h('div',{style:'min-width:0'}, mode==='month'?monthGrid(cur):weekGrid(cur,mode==='day'?1:7))));
+      h('div',{class:'cal-main'}, mode==='month'?monthGrid(cur):weekGrid(cur,mode==='day'?1:7))));
 }
 function calBgPopover(){
   const p=S.prefs, cur=p.calBg||'';
@@ -914,9 +929,10 @@ function monthGrid(cur){
   for(let i=0;i<weeks*7;i++){ const d=addD(start,i), ds=ymd(d); const evs=eventsOn(ds,true), tks=tasksDue(ds,true);
     const items=[...evs.map(e=>h('button',{type:'button',class:'chip t-'+evColor(e),onclick:x=>{x.stopPropagation();editEvent(e)}},e.start&&h('span',{class:'tm'},fmtT(e.start)),e.title)),
       ...tks.map(k=>h('button',{type:'button',class:'chip task',onclick:x=>{x.stopPropagation();editTask(k)}},'☐ ',k.title))];
-    const shown=items.slice(0,3);
+    const fit=Math.max(1,Math.floor(((window.innerHeight-(window.innerWidth<=820?230:170))/weeks-30)/(window.innerWidth<=820?17:21)));
+    const shown=items.length>fit?items.slice(0,Math.max(1,fit-1)):items;
     cells.push(h('div',{class:'cell'+(d.getMonth()!==cur.getMonth()?' out':'')+(ds===t?' today':''),onclick:()=>editEvent(null,{date:ds}),role:'button',tabindex:'0','aria-label':'Add event on '+fmtD(ds),onkeydown:e=>{if(e.key==='Enter'&&e.target===e.currentTarget)editEvent(null,{date:ds})}},
-      h('span',{class:'dnum'},d.getDate()), shown, items.length>3&&h('span',{class:'more'},`${items.length-3} more`)));
+      h('span',{class:'dnum'},d.getDate()), shown, items.length>shown.length&&h('span',{class:'more'},`${items.length-shown.length} more`)));
   }
   return h('div',{class:'month'}, dowOrder().map(d=>h('div',{class:'dow'},d)), cells);
 }
@@ -1328,6 +1344,7 @@ document.addEventListener('focusout',()=>setTimeout(()=>{ if(pendingRender&&!isE
 window.addEventListener('hashchange',()=>{ render(true); window.scrollTo(0,0); });
 function closeSide(){ $('#side').classList.remove('open'); $('#scrim').classList.remove('open'); }
 function setCollapsed(v){ document.querySelector('.app').classList.toggle('collapsed',v); lsSet('lp.collapsed',v); render(true); }
+let rsT=null; window.addEventListener('resize',()=>{ clearTimeout(rsT); rsT=setTimeout(()=>{ if(route()==='calendar'&&!isEditing()&&!closeModal) render(true); },200); });
 window.addEventListener('resize',()=>{ const ml=$('#menuLabel'); if(ml) ml.textContent=(window.innerWidth>820&&document.querySelector('.app').classList.contains('collapsed'))?'Show sidebar':'Menu'; });
 if(lsGet('lp.collapsed')) document.querySelector('.app').classList.add('collapsed');
 $('#menuBtn').addEventListener('click',()=>{ if(window.innerWidth>820 && document.querySelector('.app').classList.contains('collapsed')){ setCollapsed(false); return; } $('#side').classList.add('open'); $('#scrim').classList.add('open'); });
