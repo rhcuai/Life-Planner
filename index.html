@@ -323,6 +323,21 @@ td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .mv-sep{height:1px;background:var(--line);margin:5px 4px}
 .mv-h{font-size:12px;color:var(--muted);padding:4px 10px 2px;font-weight:500}
 .calm .bgp{right:0;left:auto}
+/* Custom repeat */
+.rr-panel{border:1px solid var(--line);border-radius:10px;padding:12px;gap:12px;background:var(--side)}
+.rr-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.rr-row.rr-col{flex-direction:column;align-items:stretch;gap:8px}
+.rr-row>span:first-child{color:var(--muted);font-size:13px}
+.rr-n{width:64px}
+.rr-unit{width:auto}
+.rr-days{display:flex;gap:6px;flex-wrap:wrap}
+.rr-day{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:600;color:var(--fg)}
+.rr-day.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.rr-end{display:flex;align-items:center;gap:10px;font-size:14px;min-height:36px}
+.rr-end>span{width:44px}
+.rr-end .input{width:auto;flex:none}
+.rr-inline{display:inline-flex;align-items:center;gap:8px;color:var(--muted)}
+.rr-end input:disabled{opacity:.5}
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -694,12 +709,55 @@ function buildField(f,vals){
     (v&&v.length?v:[{}]).forEach(add);
     return h('div',{class:cls}, h('span',{class:'lbl'},f.label), wrap, h('div',null,btn('Add exercise',()=>add(),'btn ghost sm','plus')));
   }
+  else if(f.type==='repeat') return repeatField(f,vals);
   else if(f.type==='note') return h('div',{class:'field full note'}, Array.isArray(f.text)?f.text.map(([hd,tx])=>h('p',null,h('b',null,hd+'. '),tx)):h('p',null,f.text));
   else if(f.type==='file') ctl=h('input',{class:'input',id,type:'file',accept:f.accept||null});
   else ctl=h('input',{class:'input',id,type:f.type||'text',value:v??(f.def??''),placeholder:f.ph||null,step:f.type==='number'?'any':null,inputmode:f.type==='number'?'decimal':null,required:f.required||null});
   return h('div',{class:cls},lab,ctl,f.hint&&h('span',{class:'hint'},f.hint));
 }
+function repeatField(f,vals){
+  const cur=vals.repeat||'none', R=Object.assign({freq:'week',every:1,days:[],monthBy:'date',ends:'never',until:'',count:10},vals.rr||{});
+  if(vals.rr){ R.ends=vals.rr.until?'on':vals.rr.count?'after':'never'; }
+  const sel=h('select',{class:'input',id:'f-repeat'});
+  const dateOf=()=>{ const d=sel.closest('form')?.querySelector('#f-date'); return d&&d.value||vals.date||today(); };
+  const fill=()=>{ const v=sel.value||cur; sel.replaceChildren(...repeatPresets(dateOf()).map(([k,l])=>h('option',{value:k,selected:k===v},l))); if(!sel.value) sel.value='none'; };
+  const panel=h('div',{class:'field full rr-panel',id:'rrPanel'});
+  const drawPanel=()=>{
+    panel.hidden=sel.value!=='custom'; if(panel.hidden) return;
+    const a=pd(dateOf());
+    if(R.freq==='week'&&!R.days.length) R.days=[a.getDay()];
+    const every=h('input',{class:'input rr-n',type:'number',min:'1',max:'99',inputmode:'numeric',id:'rrEvery',value:R.every,'aria-label':'Repeat every',oninput:e=>{R.every=Math.max(1,parseInt(e.target.value)||1);}});
+    const unit=h('select',{class:'input rr-unit',id:'rrUnit','aria-label':'Unit',onchange:e=>{R.freq=e.target.value; drawPanel();}},[['day','day'],['week','week'],['month','month'],['year','year']].map(([k,l])=>h('option',{value:k,selected:R.freq===k},R.every>1?l+'s':l)));
+    every.addEventListener('input',()=>{ [...unit.options].forEach(o=>{ o.textContent=o.value+(R.every>1?'s':''); }); });
+    const rows=[h('div',{class:'rr-row'},h('span',null,'Repeat every'),every,unit)];
+    if(R.freq==='week') rows.push(h('div',{class:'rr-row rr-col'},h('span',null,'Repeat on'),h('div',{class:'rr-days',role:'group','aria-label':'Repeat on'},
+      [0,1,2,3,4,5,6].map(i=>{ const d=(wkStart()+i)%7, on=R.days.includes(d); return h('button',{type:'button',class:'rr-day'+(on?' on':''),'aria-pressed':on?'true':'false','aria-label':DOW_LONG[d],onclick:()=>{ R.days=on?R.days.filter(x=>x!==d):[...R.days,d]; if(!R.days.length) R.days=[d]; drawPanel(); }},DOW_ALL[d].slice(0,1)); }))));
+    if(R.freq==='month'){ const nth=NTH[Math.ceil(a.getDate()/7)-1], wd=DOW_LONG[a.getDay()];
+      const opts=[['date',`Monthly on day ${a.getDate()}`],['nth',`Monthly on the ${nth} ${wd}`]]; if(isLastWk(a)) opts.push(['last',`Monthly on the last ${wd}`]);
+      if(!opts.some(o=>o[0]===R.monthBy)) R.monthBy='date';
+      rows.push(h('div',{class:'rr-row'},h('select',{class:'input',id:'rrMonthBy','aria-label':'Monthly on',onchange:e=>{R.monthBy=e.target.value;}},opts.map(([k,l])=>h('option',{value:k,selected:R.monthBy===k},l))))); }
+    const radio=(v,label,extra)=>h('label',{class:'rr-end'},h('input',{type:'radio',name:'rrEnds',value:v,checked:R.ends===v,onchange:()=>{R.ends=v; drawPanel();}}),h('span',null,label),extra||null);
+    rows.push(h('div',{class:'rr-row rr-col'},h('span',null,'Ends'),
+      radio('never','Never'),
+      radio('on','On',h('input',{class:'input',type:'date',id:'rrUntil',value:R.until||ymd(addD(a,R.freq==='year'?365*3:R.freq==='month'?365:90)),disabled:R.ends!=='on','aria-label':'End date',onchange:e=>{R.until=e.target.value;}})),
+      radio('after','After',h('span',{class:'rr-inline'},h('input',{class:'input rr-n',type:'number',min:'1',max:'999',inputmode:'numeric',id:'rrCount',value:R.count||10,disabled:R.ends!=='after','aria-label':'Number of times',oninput:e=>{R.count=Math.max(1,parseInt(e.target.value)||1);}}),'times'))));
+    panel.replaceChildren(h('span',{class:'lbl'},'Custom repeat'),...rows);
+  };
+  sel.addEventListener('change',drawPanel);
+  fill(); panel.hidden=true;
+  setTimeout(()=>{ const d=sel.closest('form')?.querySelector('#f-date'); if(d) d.addEventListener('change',()=>{ fill(); drawPanel(); }); fill(); drawPanel(); },0);
+  sel._read=()=>{ const v=sel.value; if(v!=='custom') return {repeat:v,rr:null};
+    const u=sel.closest('form')?.querySelector('#rrUntil'); if(u&&R.ends==='on') R.until=u.value;
+    const rr={freq:R.freq,every:Math.max(1,parseInt(R.every)||1)};
+    if(R.freq==='week') rr.days=R.days.slice().sort(); if(R.freq==='month') rr.monthBy=R.monthBy;
+    if(R.ends==='on'&&R.until) rr.until=R.until; if(R.ends==='after') rr.count=Math.max(1,parseInt(R.count)||1);
+    return {repeat:'custom',rr}; };
+  const frag=document.createDocumentFragment();
+  frag.append(h('div',{class:'field'+(f.full?' full':'')},h('label',{for:'f-repeat'},f.label),sel), panel);
+  return frag;
+}
 function readField(form,f){
+  if(f.type==='repeat'){ const el=form.querySelector('#f-repeat'); return el&&el._read?el._read():{repeat:'none',rr:null}; }
   if(f.type==='color'){ const r=form.querySelector(`input[name="${f.key}"]:checked`); const v=r?r.value:(f.def||'blue'); return v==='auto'?'':v; }
   if(f.type==='exercises') return [...form.querySelectorAll('[data-ex]')].map(r=>{ const g=k=>r.querySelector(`[data-k="${k}"]`).value; return {name:g('name').trim(),sets:num(g('sets'))||'',reps:num(g('reps'))||'',weight:num(g('weight'))||''}; }).filter(x=>x.name);
   if(f.type==='note') return '';
@@ -711,17 +769,74 @@ function readField(form,f){
 }
 
 /* ---------- shared logic ---------- */
-function occurs(ev,ds){
-  if(ev.date===ds) return true;
-  if(!ev.repeat||ev.repeat==='none'||ds<ev.date) return false;
-  const a=pd(ev.date), b=pd(ds);
-  if(ev.repeat==='daily') return true;
-  if(ev.repeat==='weekdays') return b.getDay()>0&&b.getDay()<6;
-  if(ev.repeat==='weekly') return a.getDay()===b.getDay();
-  if(ev.repeat==='monthly') return a.getDate()===b.getDate();
-  if(ev.repeat==='yearly') return a.getDate()===b.getDate()&&a.getMonth()===b.getMonth();
+/* Repeating events. ev.repeat is a preset name; 'custom' uses ev.rr = {freq:'day'|'week'|'month'|'year', every:n, days:[0-6], monthBy:'date'|'nth'|'last', until:'YYYY-MM-DD', count:n} */
+const dnum=d=>Math.round(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5);
+const NTH=['first','second','third','fourth','fifth'];
+const DOW_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const isLastWk=d=>d.getDate()+7>new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+function ruleOf(ev){
+  const a=pd(ev.date), r=ev.repeat||'none';
+  switch(r){
+    case 'none': return null;
+    case 'daily': return {freq:'day',every:1};
+    case 'weekdays': return {freq:'week',every:1,days:[1,2,3,4,5]};
+    case 'weekly': return {freq:'week',every:1,days:[a.getDay()]};
+    case 'biweekly': return {freq:'week',every:2,days:[a.getDay()]};
+    case 'monthly': return {freq:'month',every:1,monthBy:'date'};
+    case 'monthnth': return {freq:'month',every:1,monthBy:'nth'};
+    case 'monthlast': return {freq:'month',every:1,monthBy:'last'};
+    case 'yearly': return {freq:'year',every:1};
+    case 'custom': return ev.rr&&ev.rr.freq?ev.rr:null;
+  }
+  return null;
+}
+function matchRule(r,a,b){
+  const n=Math.max(1,parseInt(r.every)||1);
+  if(r.freq==='day') return (dnum(b)-dnum(a))%n===0;
+  if(r.freq==='week'){ const days=r.days&&r.days.length?r.days:[a.getDay()]; if(!days.includes(b.getDay())) return false;
+    const wk=Math.floor((dnum(b)-b.getDay()-(dnum(a)-a.getDay()))/7); return wk%n===0; }
+  if(r.freq==='month'){ const md=(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth(); if(md%n) return false;
+    if(r.monthBy==='nth') return b.getDay()===a.getDay()&&Math.ceil(b.getDate()/7)===Math.ceil(a.getDate()/7);
+    if(r.monthBy==='last') return b.getDay()===a.getDay()&&isLastWk(b);
+    return b.getDate()===a.getDate(); }
+  if(r.freq==='year') return (b.getFullYear()-a.getFullYear())%n===0&&b.getMonth()===a.getMonth()&&b.getDate()===a.getDate();
   return false;
 }
+const countEnd=new Map();
+function lastByCount(ev,r){ /* date of the count-th occurrence, cached */
+  const key=ev.date+JSON.stringify(r); if(countEnd.has(key)) return countEnd.get(key);
+  const a=pd(ev.date); let left=Math.max(1,parseInt(r.count)||1), d=new Date(a), last=ev.date;
+  for(let i=0;i<366*30&&left>0;i++){ if(i===0||matchRule(r,a,d)){ left--; last=ymd(d); } d=addD(d,1); }
+  if(countEnd.size>500) countEnd.clear(); countEnd.set(key,last); return last;
+}
+function occurs(ev,ds){
+  if(ev.date===ds) return true;
+  if(ds<ev.date) return false;
+  const r=ruleOf(ev); if(!r) return false;
+  if(r.until&&ds>r.until) return false;
+  const b=pd(ds); if(!matchRule(r,pd(ev.date),b)) return false;
+  if(r.count&&ds>lastByCount(ev,r)) return false;
+  return true;
+}
+function repeatPresets(ds){
+  const a=pd(ds||today()), wd=DOW_LONG[a.getDay()], nth=NTH[Math.ceil(a.getDate()/7)-1];
+  const o=[['none','Does not repeat'],['daily','Daily'],['weekly',`Weekly on ${wd}`],['biweekly',`Every 2 weeks on ${wd}`],
+    ['monthly',`Monthly on day ${a.getDate()}`],['monthnth',`Monthly on the ${nth} ${wd}`]];
+  if(isLastWk(a)) o.push(['monthlast',`Monthly on the last ${wd}`]);
+  o.push(['yearly',`Annually on ${MONTHS[a.getMonth()]} ${a.getDate()}`],['weekdays','Every weekday (Monday to Friday)'],['custom','Custom…']);
+  return o;
+}
+function describeRule(r,ds){
+  if(!r) return '';
+  const a=pd(ds||today()), n=Math.max(1,parseInt(r.every)||1), unit={day:'day',week:'week',month:'month',year:'year'}[r.freq];
+  let t=n===1?(r.freq==='day'?'Daily':r.freq==='week'?'Weekly':r.freq==='month'?'Monthly':'Annually'):`Every ${n} ${unit}s`;
+  if(r.freq==='week'){ const d=(r.days&&r.days.length?r.days:[a.getDay()]).slice().sort(); t+=' on '+(d.join()==='1,2,3,4,5'?'weekdays':d.map(i=>DOW_ALL[i]).join(', ')); }
+  if(r.freq==='month') t+=r.monthBy==='nth'?` on the ${NTH[Math.ceil(a.getDate()/7)-1]} ${DOW_LONG[a.getDay()]}`:r.monthBy==='last'?` on the last ${DOW_LONG[a.getDay()]}`:` on day ${a.getDate()}`;
+  if(r.freq==='year') t+=` on ${MONTHS[a.getMonth()]} ${a.getDate()}`;
+  if(r.until) t+=`, until ${fmtD(r.until)}`; else if(r.count) t+=`, ${r.count} time${r.count>1?'s':''}`;
+  return t;
+}
+function repeatText(ev){ if(!ev.repeat||ev.repeat==='none') return ''; if(ev.repeat==='custom') return describeRule(ruleOf(ev),ev.date); const p=repeatPresets(ev.date).find(x=>x[0]===ev.repeat); return p?p[1]:''; }
 function defaultCals(){ return [{id:'personal',name:'Personal',color:'blue'},{id:'work',name:'Work',color:'purple'},{id:'health',name:'Health & fitness',color:'green'},{id:'social',name:'Friends & plans',color:'pink'},{id:'family',name:'Family & birthdays',color:'orange'}]; }
 function ensureCals(){ const c=S.calendar; if(!Array.isArray(c.cals)||!c.cals.length) c.cals=defaultCals(); if(c.showTasks===undefined) c.showTasks=true;
   const ids=new Set(c.cals.map(x=>x.id)); for(const e of c.events) if(!ids.has(e.calId)) e.calId=c.cals[0].id; }
@@ -742,9 +857,9 @@ function editEvent(ev,defaults={}){
   const isNew=!ev;
   const firstVis=(S.calendar.cals.find(c=>!c.hidden)||S.calendar.cals[0]).id;
   openForm({title:isNew?'New event':'Edit event', data:ev||Object.assign({date:today(),color:'',calId:firstVis,repeat:'none'},defaults),
-    fields:[{key:'title',label:'Title',full:true,required:true,ph:'Add a title'},{key:'calId',label:'Calendar',type:'select',full:true,options:S.calendar.cals.map(c=>[c.id,c.name])},{key:'date',label:'Date',type:'date'},{key:'repeat',label:'Repeats',type:'select',options:[['none','Does not repeat'],['daily','Every day'],['weekdays','Every weekday'],['weekly','Every week'],['monthly','Every month'],['yearly','Every year']]},
+    fields:[{key:'title',label:'Title',full:true,required:true,ph:'Add a title'},{key:'calId',label:'Calendar',type:'select',full:true,options:S.calendar.cals.map(c=>[c.id,c.name])},{key:'date',label:'Date',type:'date'},{key:'repeat',label:'Repeats',type:'repeat'},
       {key:'start',label:'Start time',type:'time',hint:'Leave empty for all day'},{key:'end',label:'End time',type:'time'},{key:'color',label:'Color',type:'color',full:true,auto:'Calendar color'},{key:'notes',label:'Notes',type:'textarea',full:true}],
-    onSave:o=>{ if(isNew) S.calendar.events.push(Object.assign({id:uid()},o)); else Object.assign(ev,o); save('calendar'); },
+    onSave:o=>{ const r=o.repeat; o.repeat=r.repeat; if(r.rr) o.rr=r.rr; if(isNew) S.calendar.events.push(Object.assign({id:uid()},o)); else { Object.assign(ev,o); if(!r.rr) delete ev.rr; } save('calendar'); },
     onDelete:isNew?null:()=>{ S.calendar.events=S.calendar.events.filter(x=>x!==ev); save('calendar'); }});
 }
 function editTask(t,defaults={}){
@@ -953,14 +1068,22 @@ function parseICS(text){
   }
   return out;
 }
-function rruleToRepeat(r){
-  if(!r) return 'none'; const f=(/FREQ=(\w+)/.exec(r)||[])[1]; const by=(/BYDAY=([\w,]+)/.exec(r)||[])[1]||''; const iv=+((/INTERVAL=(\d+)/.exec(r)||[])[1]||1);
-  if(iv>1) return null; /* "every 2 weeks" etc. can't be shown exactly */
-  if(f==='DAILY') return 'daily';
-  if(f==='WEEKLY'){ const days=by.split(',').filter(Boolean); if(days.length>1) return days.sort().join(',')==='FR,MO,TH,TU,WE'?'weekdays':null; return 'weekly'; }
-  if(f==='MONTHLY') return /\d/.test(by)?null:'monthly';
-  if(f==='YEARLY') return 'yearly';
-  return null;
+function rruleToRule(r,startDs){ /* returns {repeat, rr} or null if the pattern can't be shown */
+  if(!r) return {repeat:'none'};
+  const g=k=>(new RegExp(k+'=([^;]+)').exec(r)||[])[1];
+  const f={DAILY:'day',WEEKLY:'week',MONTHLY:'month',YEARLY:'year'}[g('FREQ')]; if(!f) return null;
+  const rr={freq:f,every:Math.max(1,+(g('INTERVAL')||1))}; const by=(g('BYDAY')||'').split(',').filter(Boolean);
+  const CODES=['SU','MO','TU','WE','TH','FR','SA']; const a=pd(startDs);
+  if(f==='week'){ rr.days=by.length?by.map(x=>CODES.indexOf(x.slice(-2))).filter(i=>i>=0):[a.getDay()]; }
+  if(f==='day'&&by.length){ return null; }
+  if(f==='month'){ if(g('BYMONTHDAY')&&+g('BYMONTHDAY')!==a.getDate()) return null;
+    if(by.length){ const m=/^(-?\d)?(\w\w)$/.exec(by[0]); if(by.length>1||!m||CODES.indexOf(m[2])!==a.getDay()) return null;
+      const n=+(m[1]||0); if(n===-1) rr.monthBy='last'; else if(n>=1&&n===Math.ceil(a.getDate()/7)) rr.monthBy='nth'; else return null; }
+    else rr.monthBy='date'; }
+  if(f==='year'&&(by.length||(g('BYMONTH')&&+g('BYMONTH')!==a.getMonth()+1))) return null;
+  const u=g('UNTIL'); if(u) rr.until=`${u.slice(0,4)}-${u.slice(4,6)}-${u.slice(6,8)}`;
+  if(g('COUNT')) rr.count=Math.max(1,+g('COUNT'));
+  return {repeat:'custom',rr};
 }
 function importCalendarFile(file,name,color){
   const rd=new FileReader();
@@ -975,19 +1098,19 @@ function importCalendarFile(file,name,color){
     let added=0, updated=0, skippedOld=0, approx=0; const MAX=1200; let count=C.events.filter(e=>e.calId===cal.id).length;
     for(const x of parsed.events){
       if(!x.start||x.isException||x.status==='CANCELLED') continue;
-      let rep=rruleToRepeat(x.rrule); if(rep===null){ rep='none'; approx++; }
-      const until=(/UNTIL=(\d{8})/.exec(x.rrule||'')||[])[1];
-      const ended=until&&`${until.slice(0,4)}-${until.slice(4,6)}-${until.slice(6,8)}`<cutoff;
-      if((rep==='none'||ended)&&x.start.date<cutoff){ skippedOld++; continue; }
-      const ev={title:(x.title||'(No title)').slice(0,200),date:x.start.date,start:x.start.time,end:x.end&&x.end.time&&x.end.date===x.start.date?x.end.time:'',repeat:ended?'none':rep,calId:cal.id,color:'',
+      let R=rruleToRule(x.rrule,x.start.date); if(R===null){ R={repeat:'none'}; approx++; }
+      const ended=R.rr&&R.rr.until&&R.rr.until<cutoff;
+      if((R.repeat==='none'||ended)&&x.start.date<cutoff){ skippedOld++; continue; }
+      const ev={title:(x.title||'(No title)').slice(0,200),date:x.start.date,start:x.start.time,end:x.end&&x.end.time&&x.end.date===x.start.date?x.end.time:'',repeat:ended?'none':R.repeat,calId:cal.id,color:'',
         notes:[x.loc?('Where: '+x.loc):'',x.desc||''].filter(Boolean).join('\n').slice(0,400),uid:x.uid||''};
+      if(R.rr&&!ended) ev.rr=R.rr;
       const old=ev.uid&&existing.get(ev.uid);
       if(old){ Object.assign(old,ev); updated++; }
       else { if(count>=MAX) break; C.events.push(Object.assign({id:uid()},ev)); added++; count++; }
     }
     V.cal.panel=true; save('calendar');
     const bits=[`${added} event${added===1?'':'s'} added to “${cal.name}”`]; if(updated) bits.push(`${updated} updated`); if(skippedOld) bits.push(`${skippedOld} older than 6 months left out`); if(count>=MAX) bits.push(`stopped at ${MAX} events`);
-    openForm({title:'Calendar imported',saveLabel:'Done',fields:[{key:'_',type:'note',text:bits.join(' · ')+'.'+(approx?` ${approx} repeating event${approx===1?' has':'s have'} a pattern this planner can’t repeat (like every other week), so only the first date was added.`:'')}],onSave:()=>{}});
+    openForm({title:'Calendar imported',saveLabel:'Done',fields:[{key:'_',type:'note',text:bits.join(' · ')+'.'+(approx?` ${approx} repeating event${approx===1?' has':'s have'} a pattern this planner can’t repeat (like two different weekdays of the month), so only the first date was added.`:'')}],onSave:()=>{}});
   };
   rd.onerror=()=>toast('That file couldn’t be read.');
   rd.readAsText(file);
