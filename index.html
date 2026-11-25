@@ -405,6 +405,40 @@ button.stat.tile:hover{background:var(--hover)}
 .tile-ord{display:flex}
 .tile-ord .icon-btn:disabled{opacity:.3}
 @media (max-width:640px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} .stats>.stat:last-child:nth-child(odd){grid-column:1/-1} .tile-opts{grid-template-columns:minmax(0,1fr)} }
+/* Workouts */
+.wk-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-bottom:26px}
+.wk-day{border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;min-height:96px;background:var(--card)}
+.wk-day.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.wk-day.past{opacity:.75}
+.wk-dh{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.wk-dh b{font-weight:600;color:var(--fg)}
+.wk-r{border:0;border-radius:6px;padding:4px 6px;font-size:12px;font-weight:500;background:var(--tb);color:var(--tf);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-r.did{opacity:.8}
+.wk-rest{padding:2px}
+.wk-exl{display:flex;flex-direction:column;gap:3px}
+.wk-exr{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;min-width:0}
+.wk-exr span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sl-wrap{display:flex;flex-direction:column;gap:10px}
+.sl-ex{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--side)}
+.sl-head{display:flex;gap:6px;align-items:center}
+.sl-name{font-weight:600}
+.sl-cols,.sl-set{display:grid;grid-template-columns:22px minmax(0,1fr) 14px minmax(0,1fr) 28px;gap:6px;align-items:center}
+.sl-sets{display:flex;flex-direction:column;gap:6px}
+.sl-n{font-size:12px;color:var(--muted);text-align:center}
+.sl-x{color:var(--faint);text-align:center}
+.pc-wrap{position:relative}
+.pchart{width:100%;height:auto;display:block;overflow:visible}
+.pc-grid{stroke:var(--line);stroke-width:1}
+.pc-ax{fill:var(--muted);font-size:11px;font-family:var(--font-ui)}
+.pc-lab{fill:var(--fg);font-size:12px;font-weight:600;font-family:var(--font-ui)}
+.pc-line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.pc-hit{fill:transparent;cursor:pointer}
+.pc-dot{fill:var(--accent);stroke:var(--bg);stroke-width:2}
+.pc-dot.pr{fill:var(--good)}
+.pc-pt:focus{outline:none} .pc-pt:focus .pc-dot,.pc-pt:hover .pc-dot{r:6}
+.pc-tip{position:absolute;transform:translate(-50%,calc(-100% - 12px));background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:8px;padding:6px 10px;font-size:12.5px;white-space:nowrap;pointer-events:none;z-index:5}
+.pc-tip span{color:var(--muted)}
+@media (max-width:820px){ .wk-week{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px} .wk-day{padding:5px 3px;min-height:80px} .wk-r{font-size:10.5px;padding:3px 4px} .wk-dh{flex-direction:column;align-items:center} }
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -675,7 +709,7 @@ function stars(val,onset,ro){ return h('span',{class:'stars'+(ro?' ro':''),'aria
 /* ---------- state & storage ---------- */
 const DOCS={
   calendar:()=>({events:[]}), tasks:()=>({items:[]}), week:()=>({plans:{}}), goals:()=>({items:[]}),
-  money:()=>({tx:[],budgets:{}}), habits:()=>({list:[],log:{},journal:{}}), workouts:()=>({sessions:[]}),
+  money:()=>({tx:[],budgets:{}}), habits:()=>({list:[],log:{},journal:{}}), workouts:()=>({sessions:[],routines:[]}),
   food:()=>({goal:2000,entries:[]}), cycle:()=>({days:{},avgCycle:28,avgPeriod:5}), recipes:()=>({items:[]}), movies:()=>({items:[]}), prefs:()=>({weekStart:0,mode:'system',tpl:'classic',bg:'paper',titleFont:'fraunces',bodyFont:'dmsans',bgColor:'#cfe3d4'})
 };
 let S={}; let META={example:false};
@@ -800,6 +834,8 @@ function buildField(f,vals){
     return h('div',{class:cls}, h('span',{class:'lbl'},f.label), wrap, h('div',null,btn('Add exercise',()=>add(),'btn ghost sm','plus')));
   }
   else if(f.type==='repeat') return repeatField(f,vals);
+  else if(f.type==='setlog') return setLogField(f,vals);
+  else if(f.type==='weekdays') return weekdaysField(f,vals);
   else if(f.type==='note') return h('div',{class:'field full note'}, Array.isArray(f.text)?f.text.map(([hd,tx])=>h('p',null,h('b',null,hd+'. '),tx)):h('p',null,f.text));
   else if(f.type==='file') ctl=h('input',{class:'input',id,type:'file',accept:f.accept||null});
   else ctl=h('input',{class:'input',id,type:f.type||'text',value:v??(f.def??''),placeholder:f.ph||null,step:f.type==='number'?'any':null,inputmode:f.type==='number'?'decimal':null,required:f.required||null});
@@ -847,6 +883,8 @@ function repeatField(f,vals){
   return frag;
 }
 function readField(form,f){
+  if(f.type==='setlog') return readSetLog(form);
+  if(f.type==='weekdays') return [...form.querySelectorAll('#f-'+f.key+' .rr-day.on')].map(b=>+b.dataset.d).sort();
   if(f.type==='repeat'){ const el=form.querySelector('#f-repeat'); return el&&el._read?el._read():{repeat:'none',rr:null}; }
   if(f.type==='color'){ const hx=normHex((form.querySelector('#hex-'+f.key)||{}).value||''); if(hx) return hx; const r=form.querySelector(`input[name="${f.key}"]:checked`); const v=r?r.value:(f.def||'blue'); return v==='auto'?'':v; }
   if(f.type==='exercises') return [...form.querySelectorAll('[data-ex]')].map(r=>{ const g=k=>r.querySelector(`[data-k="${k}"]`).value; return {name:g('name').trim(),sets:num(g('sets'))||'',reps:num(g('reps'))||'',weight:num(g('weight'))||''}; }).filter(x=>x.name);
@@ -1653,37 +1691,160 @@ function pageHabits(){
 
 /* Workouts */
 const WTYPES=[['Strength','blue'],['Cardio','orange'],['Mobility','green'],['Sport','purple'],['Other','gray']];
-function editSession(s){
-  const isNew=!s;
-  openForm({title:isNew?'Log a workout':'Edit workout',data:s||{date:today(),type:'Strength'},
-    fields:[{key:'title',label:'Name',ph:'e.g. Push day, 5k run',required:true},{key:'type',label:'Type',type:'select',options:WTYPES.map(w=>w[0])},{key:'date',label:'Date',type:'date'},{key:'minutes',label:'Duration (minutes)',type:'number'},
-      {key:'exercises',label:'Exercises',type:'exercises',full:true},{key:'notes',label:'Notes',type:'textarea',full:true,rows:2,ph:'Distance, how it felt, etc.'}],
-    onSave:o=>{ if(isNew) S.workouts.sessions.push(Object.assign({id:uid()},o)); else Object.assign(s,o); save('workouts'); },
-    onDelete:isNew?null:()=>{ S.workouts.sessions=S.workouts.sessions.filter(x=>x!==s); save('workouts'); }});
+function wkEnsure(){ const W=S.workouts; if(!Array.isArray(W.routines)) W.routines=[]; if(!Array.isArray(W.sessions)) W.sessions=[]; return W; }
+/* each logged exercise: {name, setsLog:[{reps,weight}], sets, reps, weight} (sets/reps/weight = summary of the top set) */
+function exSets(e){ if(Array.isArray(e.setsLog)&&e.setsLog.length) return e.setsLog; const n=Math.max(1,Math.min(20,parseInt(e.sets)||1)); return [...Array(n)].map(()=>({reps:e.reps??'',weight:e.weight??''})); }
+function exTop(e){ const ss=exSets(e).filter(s=>num(s.reps)||num(s.weight)); if(!ss.length) return null; return ss.reduce((b,s)=>num(s.weight)>num(b.weight)||(num(s.weight)===num(b.weight)&&num(s.reps)>num(b.reps))?s:b); }
+const exVolume=e=>exSets(e).reduce((a,s)=>a+num(s.reps)*num(s.weight),0);
+const exKey=n=>String(n||'').trim().toLowerCase();
+function lastTime(name,beforeDate,skipId){ const k=exKey(name); const ss=S.workouts.sessions.filter(s=>s.id!==skipId&&(!beforeDate||s.date<=beforeDate)).sort((a,b)=>b.date.localeCompare(a.date));
+  for(const s of ss){ const e=(s.exercises||[]).find(x=>exKey(x.name)===k); if(e) return {date:s.date,sets:exSets(e)}; } return null; }
+const setsText=sets=>{ const ss=sets.filter(s=>num(s.reps)||num(s.weight)); if(!ss.length) return ''; const same=ss.every(s=>num(s.reps)===num(ss[0].reps)&&num(s.weight)===num(ss[0].weight));
+  return same?`${ss.length}×${num(ss[0].reps)||'?'}${num(ss[0].weight)?` @ ${num(ss[0].weight)} lb`:''}`:ss.map(s=>`${num(s.reps)||'?'}${num(s.weight)?'@'+num(s.weight):''}`).join(', '); };
+function setLogField(f,vals){
+  const wrap=h('div',{class:'sl-wrap',id:'f-'+f.key});
+  const addEx=(e={})=>{ const sets=e.setsLog||e.sets? exSets(e):[{reps:e.reps??'',weight:e.weight??''}];
+    const list=h('div',{class:'sl-sets'});
+    const addSet=(s={})=>{ const n=list.children.length+1; const row=h('div',{class:'sl-set','data-set':'1'},h('span',{class:'sl-n num'},n),
+        h('input',{class:'input','data-k':'reps',type:'number',inputmode:'numeric',min:'0',placeholder:'Reps',value:s.reps??'','aria-label':`Set ${n} reps`}),
+        h('span',{class:'sl-x'},'×'),
+        h('input',{class:'input','data-k':'weight',type:'number',inputmode:'decimal',min:'0',step:'any',placeholder:'lb',value:s.weight??'','aria-label':`Set ${n} weight in pounds`}),
+        h('button',{type:'button',class:'icon-btn','aria-label':'Remove set',onclick:()=>{ row.remove(); [...list.children].forEach((r,i)=>r.querySelector('.sl-n').textContent=i+1); }},ic('x')));
+      list.append(row); };
+    sets.forEach(addSet);
+    const nameIn=h('input',{class:'input sl-name','data-k':'name',placeholder:'Exercise, e.g. Squat',value:e.name||'','aria-label':'Exercise name'});
+    const hint=h('div',{class:'sl-last small faint'});
+    const showLast=()=>{ const lt=nameIn.value.trim()&&lastTime(nameIn.value,null,vals.id); hint.textContent=lt?`Last time (${fmtD(lt.date,{month:'short',day:'numeric'})}): ${setsText(lt.sets)}`:''; };
+    nameIn.addEventListener('change',showLast); setTimeout(showLast,0);
+    const box=h('div',{class:'sl-ex','data-ex':'1'},
+      h('div',{class:'sl-head'},nameIn,h('button',{type:'button',class:'icon-btn','aria-label':'Remove exercise',onclick:()=>box.remove()},ic('x'))),
+      hint, h('div',{class:'sl-cols small faint'},h('span'),h('span',null,'Reps'),h('span'),h('span',null,'Weight (lb)')), list,
+      h('div',null,btn('Add set',()=>{ const last=list.lastElementChild; addSet(last?{reps:last.querySelector('[data-k=reps]').value,weight:last.querySelector('[data-k=weight]').value}:{}); },'btn ghost sm','plus')));
+    wrap.append(box); };
+  (vals[f.key]&&vals[f.key].length?vals[f.key]:[{}]).forEach(addEx);
+  return h('div',{class:'field full'},h('span',{class:'lbl'},f.label),wrap,h('div',null,btn('Add exercise',()=>addEx(),'btn sm','plus')));
+}
+function readSetLog(form){ return [...form.querySelectorAll('.sl-ex')].map(b=>{ const name=b.querySelector('.sl-name').value.trim();
+  const setsLog=[...b.querySelectorAll('[data-set]')].map(r=>({reps:num(r.querySelector('[data-k=reps]').value)||'',weight:num(r.querySelector('[data-k=weight]').value)||''})).filter(s=>s.reps!==''||s.weight!=='');
+  const e={name,setsLog}; const top=exTop(e); e.sets=setsLog.length||''; e.reps=top?top.reps:''; e.weight=top?top.weight:''; return e; }).filter(e=>e.name); }
+function editSession(s,defaults={}){
+  const isNew=!s, W=wkEnsure();
+  openForm({title:isNew?(defaults.title?defaults.title:'Log a workout'):'Edit workout',data:s||Object.assign({date:today(),type:'Strength'},defaults),saveLabel:isNew?'Save workout':'Save',
+    fields:[{key:'title',label:'Name',ph:'e.g. Leg day, 5k run',required:true},{key:'type',label:'Type',type:'select',options:WTYPES.map(w=>w[0])},{key:'date',label:'Date',type:'date'},{key:'minutes',label:'Duration (minutes)',type:'number'},
+      {key:'exercises',label:'Exercises',type:'setlog',full:true},{key:'notes',label:'Notes',type:'textarea',full:true,rows:2,ph:'Distance, how it felt, etc.'}],
+    onSave:o=>{ if(defaults.routineId&&isNew) o.routineId=defaults.routineId; if(isNew) W.sessions.push(Object.assign({id:uid()},o)); else Object.assign(s,o); save('workouts');
+      if(isNew){ const prs=o.exercises.filter(e=>{ const k=exKey(e.name), w=num(e.weight); if(!w) return false; return !W.sessions.some(x=>x.date<=o.date&&x!==W.sessions[W.sessions.length-1]&&(x.exercises||[]).some(y=>exKey(y.name)===k&&num((exTop(y)||{}).weight)>=w)); }); if(prs.length) toast(`New personal best: ${prs.map(e=>e.name).join(', ')} 🎉`); } },
+    onDelete:isNew?null:()=>{ W.sessions=W.sessions.filter(x=>x!==s); save('workouts'); }});
+}
+function startRoutine(r,date){
+  const exercises=(r.exercises||[]).map(e=>{ const lt=lastTime(e.name); const n=Math.max(1,parseInt(e.sets)||(lt?lt.sets.length:3));
+    const base=lt?lt.sets:[]; return {name:e.name,setsLog:[...Array(n)].map((_,i)=>({reps:(base[i]||base[base.length-1]||{}).reps??e.reps??'',weight:(base[i]||base[base.length-1]||{}).weight??e.weight??''}))}; });
+  editSession(null,{title:r.name,type:r.type||'Strength',date:date||today(),exercises,routineId:r.id});
+}
+const DAYS_FIELD=(cur)=>cur;
+function editRoutine(r){
+  const isNew=!r, W=wkEnsure();
+  const data=r?Object.assign({},r,{exercises:(r.exercises||[]).map(e=>({name:e.name,sets:e.sets,reps:e.reps,weight:e.weight}))}):{color:'blue',days:[],type:'Strength'};
+  openForm({title:isNew?'New routine':'Edit routine',data,
+    fields:[{key:'name',label:'Routine name',required:true,ph:'e.g. Legs, Abs, Arms, Push day'},{key:'type',label:'Type',type:'select',options:WTYPES.map(w=>w[0])},
+      {key:'days',label:'Which days',type:'weekdays',full:true},
+      {key:'exercises',label:'Exercises (target sets, reps and starting weight)',type:'exercises',full:true},
+      {key:'color',label:'Color',type:'color',full:true},{key:'notes',label:'Notes',type:'textarea',full:true,rows:2}],
+    onSave:o=>{ if(isNew) W.routines.push(Object.assign({id:uid()},o)); else Object.assign(r,o); save('workouts'); },
+    onDelete:isNew?null:()=>{ W.routines=W.routines.filter(x=>x!==r); save('workouts'); }});
+}
+function weekdaysField(f,vals){
+  const cur=new Set(vals[f.key]||[]);
+  const box=h('div',{class:'rr-days',id:'f-'+f.key,role:'group','aria-label':f.label},[0,1,2,3,4,5,6].map(i=>{ const d=(wkStart()+i)%7;
+    const b=h('button',{type:'button',class:'rr-day'+(cur.has(d)?' on':''),'data-d':d,'aria-pressed':cur.has(d)?'true':'false','aria-label':DOW_LONG[d],onclick:()=>{ const on=b.classList.toggle('on'); b.setAttribute('aria-pressed',on?'true':'false'); }},DOW_ALL[d].slice(0,1)); return b; }));
+  return h('div',{class:'field full'},h('span',{class:'lbl'},f.label),box,h('span',{class:'hint'},'Leave empty for a routine you do any day'));
+}
+function exNames(){ const m=new Map(); [...S.workouts.sessions].sort((a,b)=>a.date.localeCompare(b.date)).forEach(s=>(s.exercises||[]).forEach(e=>{ const k=exKey(e.name); if(k&&(exTop(e)||{}).weight){ m.delete(k); m.set(k,e.name.trim()); } })); return m; }
+function progressChart(points){
+  const W=Math.round(Math.max(300,Math.min(640,window.innerWidth-(window.innerWidth>1100?600:48)))), H=220, L=44, R=16, T=16, B=28;
+  const ys=points.map(p=>p.y); let lo=Math.min(...ys), hi=Math.max(...ys); if(lo===hi){ lo-=5; hi+=5; } const pad=(hi-lo)*0.12; lo=Math.max(0,lo-pad); hi+=pad;
+  const t0=dnum(pd(points[0].d)), t1=dnum(pd(points[points.length-1].d)); const span=Math.max(1,t1-t0);
+  const X=p=>points.length===1?(L+W-R)/2:L+(dnum(pd(p.d))-t0)/span*(W-L-R), Y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
+  const NS='http://www.w3.org/2000/svg'; const el=(n,a,...k)=>{ const e=document.createElementNS(NS,n); for(const x in a) e.setAttribute(x,a[x]); k.forEach(c=>e.append(c)); return e; };
+  const svg=el('svg',{viewBox:`0 0 ${W} ${H}`,class:'pchart',role:'img','aria-label':`Top weight over time, from ${points[0].y} to ${points[points.length-1].y} lb`});
+  const ticks=4; for(let i=0;i<=ticks;i++){ const v=lo+(hi-lo)*i/ticks, y=Y(v); svg.append(el('line',{x1:L,x2:W-R,y1:y,y2:y,class:'pc-grid'}),el('text',{x:L-8,y:y+4,class:'pc-ax','text-anchor':'end'},String(Math.round(v)))); }
+  const fmt=d=>fmtD(d,{month:'short',day:'numeric'}); svg.append(el('text',{x:X(points[0]),y:H-8,class:'pc-ax','text-anchor':points.length===1?'middle':'start'},fmt(points[0].d)));
+  if(points.length>1) svg.append(el('text',{x:W-R,y:H-8,class:'pc-ax','text-anchor':'end'},fmt(points[points.length-1].d)));
+  if(points.length>1) svg.append(el('polyline',{points:points.map(p=>`${X(p)},${Y(p.y)}`).join(' '),class:'pc-line'}));
+  const tip=h('div',{class:'pc-tip',hidden:true});
+  points.forEach((p,i)=>{ const g=el('g',{class:'pc-pt',tabindex:'0'},el('circle',{cx:X(p),cy:Y(p.y),r:14,class:'pc-hit'}),el('circle',{cx:X(p),cy:Y(p.y),r:4.5,class:'pc-dot'+(p.pr?' pr':'')}));
+    const show=()=>{ tip.hidden=false; tip.replaceChildren(h('b',null,`${p.y} lb`),` × ${p.reps||'?'} reps`,h('br'),h('span',null,fmtD(p.d)+(p.pr?' · best':''))); tip.style.left=Math.min(82,Math.max(18,X(p)/W*100))+'%'; tip.style.top=(Y(p.y)/H*100)+'%'; };
+    g.addEventListener('mouseenter',show); g.addEventListener('focus',show); g.addEventListener('click',show); g.addEventListener('mouseleave',()=>tip.hidden=true); g.addEventListener('blur',()=>tip.hidden=true); svg.append(g); });
+  const last=points[points.length-1]; svg.append(el('text',{x:Math.min(X(last),W-R-4),y:Y(last.y)-10,class:'pc-lab','text-anchor':points.length>1?'end':'middle'},`${last.y} lb`));
+  return h('div',{class:'pc-wrap'},svg,tip);
 }
 function pageWorkouts(){
-  const ss=[...S.workouts.sessions].sort((a,b)=>b.date.localeCompare(a.date)); const t=today(); const now=new Date();
+  const W=wkEnsure(); const tab=V.wkTab||'plan';
+  const ss=[...W.sessions].sort((a,b)=>b.date.localeCompare(a.date)); const t=today(); const now=new Date();
   const w0=ymd(sow(now)); const thisWeek=ss.filter(s=>s.date>=w0&&s.date<=t).length;
   const m=t.slice(0,7); const mins=ss.filter(s=>s.date.startsWith(m)).reduce((a,s)=>a+num(s.minutes),0);
-  const weeks=[...Array(8)].map((_,i)=>{ const a=addD(sow(now),-7*(7-i)), b=addD(a,6); return {label:a.toLocaleDateString(undefined,{month:'numeric',day:'numeric'}),n:ss.filter(s=>s.date>=ymd(a)&&s.date<=ymd(b)).length}; });
-  const maxN=Math.max(4,...weeks.map(w=>w.n));
-  const pr={}; ss.forEach(s=>(s.exercises||[]).forEach(e=>{ const k=e.name.trim().toLowerCase(); if(!k||!num(e.weight)) return; if(!pr[k]||num(e.weight)>pr[k].w) pr[k]={name:e.name.trim(),w:num(e.weight),reps:e.reps,date:s.date}; }));
-  const prs=Object.values(pr).sort((a,b)=>b.w-a.w).slice(0,8);
   const typeColor=ty=>(WTYPES.find(w=>w[0]===ty)||WTYPES[4])[1];
-  return page('workouts','Workouts','Log each session with your sets, reps and weights. Personal bests update on their own.',[btn('Log workout',()=>editSession(null),'btn primary','plus')],
-    h('div',{class:'stats',style:'margin-bottom:28px'},
+  const stats=h('div',{class:'stats',style:'margin-bottom:22px'},
       h('div',{class:'stat'},h('div',{class:'k'},'This week'),h('div',{class:'v'},thisWeek),h('div',{class:'s'},'sessions')),
       h('div',{class:'stat'},h('div',{class:'k'},'This month'),h('div',{class:'v'},mins.toLocaleString()),h('div',{class:'s'},'minutes')),
       h('div',{class:'stat'},h('div',{class:'k'},'All time'),h('div',{class:'v'},ss.length),h('div',{class:'s'},'sessions')),
-      h('div',{class:'stat'},h('div',{class:'k'},'Last workout'),h('div',{class:'v',style:'font-size:17px;padding-top:5px'},ss[0]?fmtD(ss[0].date):'None yet'),h('div',{class:'s'},ss[0]?ss[0].title:''))),
-    h('div',{class:'grid2',style:'margin-bottom:28px'},
-      block('Sessions per week',null, h('div',{class:'chart'},weeks.map(w=>h('div',{class:'col'},w.n?h('span',null,w.n):null,h('i',{style:`height:${w.n/maxN*100}%`})))), h('div',{class:'chart-x'},weeks.map(w=>h('span',null,w.label)))),
-      block('Personal bests',null, prs.length?h('div',{class:'rows'},prs.map(p=>h('div',{class:'row'},h('span',{class:'grow'},p.name),h('b',{class:'num'},`${p.w} lb`),h('span',{class:'small faint num'},p.reps?`× ${p.reps}`:''),h('span',{class:'small muted'},fmtD(p.date,{month:'short',day:'numeric'}))))):h('div',{class:'empty'},'Log weights to see your bests.'))),
-    block('History',null, ss.length?h('div',{class:'rows'},ss.map(s=>h('div',{class:'row',style:'align-items:flex-start'},
+      h('div',{class:'stat'},h('div',{class:'k'},'Last workout'),h('div',{class:'v',style:'font-size:17px;padding-top:5px'},ss[0]?fmtD(ss[0].date,{month:'short',day:'numeric'}):'None yet'),h('div',{class:'s'},ss[0]?ss[0].title:'')));
+  const tabs=h('div',{class:'fin-tabs'},seg([['plan','This week'],['routines','Routines'],['progress','Progress'],['history','History']],tab,v=>{V.wkTab=v;render(true)}));
+  let body;
+  if(tab==='plan'){
+    const days=[...Array(7)].map((_,i)=>addD(sow(now),i));
+    body=[h('div',{class:'wk-week'},days.map(d=>{ const ds=ymd(d), dow=d.getDay(); const rs=W.routines.filter(r=>(r.days||[]).includes(dow)); const done=W.sessions.filter(s=>s.date===ds);
+        return h('div',{class:'wk-day'+(ds===t?' today':'')+(ds<t?' past':'')},
+          h('div',{class:'wk-dh'},h('b',null,DOW_ALL[dow]),h('span',{class:'num'},d.getDate())),
+          rs.length?rs.map(r=>{ const did=done.some(s=>s.routineId===r.id);
+            return h('button',{type:'button',class:'wk-r t-'+(r.color||'blue')+(did?' did':''),onclick:()=>did?editSession(done.find(s=>s.routineId===r.id)):startRoutine(r,ds),title:did?'Done. Tap to see what you logged':'Tap to log this workout'},did?'✓ ':'',r.name); }):h('span',{class:'small faint wk-rest'},'Rest'),
+          done.filter(s=>!s.routineId||!rs.some(r=>r.id===s.routineId)).map(s=>h('button',{type:'button',class:'wk-r did t-gray',onclick:()=>editSession(s)},'✓ ',s.title))); })),
+      (()=>{ const todays=W.routines.filter(r=>(r.days||[]).includes(now.getDay())); const doneT=W.sessions.filter(s=>s.date===t);
+        return block('Today',btn('Log other workout',()=>editSession(null),'btn ghost sm','plus'),
+          todays.length?h('div',{class:'rows'},todays.map(r=>{ const did=doneT.find(s=>s.routineId===r.id);
+            return h('div',{class:'row t-'+(r.color||'blue')},h('span',{class:'dot'}),h('div',{style:'flex:1;min-width:0'},h('div',{style:'font-weight:500'},r.name),h('div',{class:'small muted'},(r.exercises||[]).map(e=>e.name).join(' · ')||'No exercises yet')),
+              did?btn('Done ✓',()=>editSession(did),'btn sm'):btn('Start',()=>startRoutine(r),'btn primary sm')); })):
+          h('div',{class:'empty'},W.routines.length?'Rest day. Nothing scheduled for today.':'Make a routine (like Legs, Abs or Arms), pick its days, and it shows up here.')); })()];
+  } else if(tab==='routines'){
+    body=[block('Routines',btn('Routine',()=>editRoutine(null),'btn sm','plus'),
+      W.routines.length?h('div',{class:'acct-grid'},W.routines.map(r=>{ const last=ss.find(s=>s.routineId===r.id);
+        return h('div',{class:'acct wk-card t-'+(r.color||'blue')},
+          h('div',{class:'acct-top'},h('span',{class:'acct-name'},h('span',{class:'dot',style:'margin-right:8px'}),r.name),h('span',{class:'small muted'},(r.days||[]).length?(r.days.length===7?'Every day':[...r.days].sort((a,b)=>((a-wkStart()+7)%7)-((b-wkStart()+7)%7)).map(d=>DOW_ALL[d]).join(', ')):'Any day')),
+          (r.exercises||[]).length?h('div',{class:'wk-exl'},r.exercises.map(e=>{ const lt=lastTime(e.name); return h('div',{class:'wk-exr'},h('span',null,e.name),h('span',{class:'small muted num'},lt?setsText(lt.sets):[e.sets&&e.reps?`${e.sets}×${e.reps}`:'',e.weight?`@ ${e.weight} lb`:''].filter(Boolean).join(' '))); })):h('div',{class:'small faint'},'No exercises yet'),
+          h('div',{class:'small faint'},last?`Last done ${fmtD(last.date,{month:'short',day:'numeric'})}`:'Not done yet'),
+          h('div',{style:'display:flex;gap:6px'},btn('Start',()=>startRoutine(r),'btn primary sm'),btn('Edit',()=>editRoutine(r),'btn ghost sm'))); })):
+      h('div',{class:'empty'},'Create a routine for each focus, like Legs, Abs or Arms. Add its exercises with target sets, reps and weight, and pick which days you do it.'))];
+  } else if(tab==='progress'){
+    const names=exNames(); const keys=[...names.keys()].sort();
+    let sel=V.wkEx&&names.has(V.wkEx)?V.wkEx:[...names.keys()].pop();
+    const pr={}; ss.forEach(s=>(s.exercises||[]).forEach(e=>{ const k=exKey(e.name), top=exTop(e); if(!k||!top||!num(top.weight)) return; if(!pr[k]||num(top.weight)>pr[k].w) pr[k]={name:e.name.trim(),w:num(top.weight),reps:top.reps,date:s.date}; }));
+    const prs=Object.values(pr).sort((a,b)=>b.w-a.w).slice(0,10);
+    let chart=h('div',{class:'empty'},'Log a workout with weights to see your progress.'), table=null, summary=null;
+    if(sel){ const pts=[]; let best=0;
+      [...ss].reverse().forEach(s=>(s.exercises||[]).filter(e=>exKey(e.name)===sel).forEach(e=>{ const top=exTop(e); if(!top||!num(top.weight)) return; const y=num(top.weight); const isPr=y>best; if(isPr) best=y; pts.push({d:s.date,y,reps:top.reps,pr:isPr,vol:exVolume(e),sets:exSets(e)}); }));
+      chart=pts.length?progressChart(pts):chart;
+      const first=pts[0], last=pts[pts.length-1];
+      summary=pts.length?h('div',{class:'stats',style:'margin:14px 0'},
+        h('div',{class:'stat'},h('div',{class:'k'},'Best'),h('div',{class:'v'},`${best} lb`)),
+        h('div',{class:'stat'},h('div',{class:'k'},'Latest'),h('div',{class:'v'},`${last.y} lb`),h('div',{class:'s'},fmtD(last.d,{month:'short',day:'numeric'}))),
+        h('div',{class:'stat'},h('div',{class:'k'},'Change'),h('div',{class:'v '+(last.y-first.y>0?'pos':'')},`${last.y-first.y>0?'+':''}${Math.round((last.y-first.y)*10)/10} lb`),h('div',{class:'s'},`since ${fmtD(first.d,{month:'short',day:'numeric'})}`)),
+        h('div',{class:'stat'},h('div',{class:'k'},'Sessions'),h('div',{class:'v'},pts.length))):null;
+      table=pts.length?block('Every time you did it',null,h('div',{class:'rows'},pts.slice().reverse().slice(0,20).map((p,i,a)=>{ const prev=a[i+1]; const diff=prev?p.y-prev.y:0;
+        return h('div',{class:'row'},h('span',{class:'small muted num',style:'width:70px;flex:none'},fmtD(p.d,{month:'short',day:'numeric'})),h('span',{class:'grow small',style:'flex:1;min-width:0'},setsText(p.sets)),
+          p.pr?tag('Best','green'):null,h('span',{class:'small num '+(diff>0?'pos':diff<0?'over':'faint'),style:'min-width:56px;text-align:right'},prev?(diff>0?`+${diff}`:diff<0?`${diff}`:'same'):'first')); }))):null; }
+    body=[h('div',{class:'grid2'},
+      block('Progress',keys.length?h('select',{class:'input',style:'width:auto;max-width:60%','aria-label':'Exercise',onchange:e=>{V.wkEx=e.target.value;render(true)}},keys.map(k=>h('option',{value:k,selected:k===sel},names.get(k)))):null, chart, summary),
+      block('Personal bests',null, prs.length?h('div',{class:'rows'},prs.map(p=>h('button',{type:'button',class:'row',style:'border-left:0;border-right:0;border-top:0;background:transparent;text-align:left;width:100%;color:var(--fg)',onclick:()=>{V.wkEx=exKey(p.name);render(true)}},h('span',{class:'grow',style:'flex:1'},p.name),h('b',{class:'num'},`${p.w} lb`),h('span',{class:'small faint num'},p.reps?`× ${p.reps}`:''),h('span',{class:'small muted'},fmtD(p.date,{month:'short',day:'numeric'}))))):h('div',{class:'empty'},'Log weights to see your bests.'))),
+      table?h('div',{style:'margin-top:24px'},table):null];
+  } else {
+    body=[block('History',btn('Log workout',()=>editSession(null),'btn ghost sm','plus'), ss.length?h('div',{class:'rows'},ss.map(s=>h('div',{class:'row',style:'align-items:flex-start'},
       h('span',{class:'small muted num',style:'width:84px;flex:none;padding-top:2px'},fmtD(s.date)),
       h('div',{style:'flex:1;min-width:0;display:flex;flex-direction:column;gap:2px'},h('div',{style:'display:flex;gap:8px;align-items:center;flex-wrap:wrap'},h('button',{class:'title',onclick:()=>editSession(s)},s.title),tag(s.type,typeColor(s.type)),s.minutes?h('span',{class:'small faint'},`${s.minutes} min`):null),
-        (s.exercises||[]).length?h('div',{class:'small muted'},s.exercises.map(e=>`${e.name}${e.sets&&e.reps?` ${e.sets}×${e.reps}`:''}${e.weight?` @ ${e.weight}`:''}`).join(' · ')):null,
-        s.notes?h('div',{class:'small faint'},s.notes):null)))):h('div',{class:'empty'},'No workouts logged yet.')));
+        (s.exercises||[]).length?h('div',{class:'small muted'},s.exercises.map(e=>`${e.name} ${setsText(exSets(e))}`).join(' · ')):null,
+        s.notes?h('div',{class:'small faint'},s.notes):null)))):h('div',{class:'empty'},'No workouts logged yet.'))];
+  }
+  return page('workouts','Workouts','Plan routines for each day, log every set, and watch your weights go up.',[btn('New routine',()=>editRoutine(null),'btn'),btn('Log workout',()=>editSession(null),'btn primary','plus')],
+    stats, tabs, body);
 }
 
 /* Calories */
