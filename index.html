@@ -392,6 +392,19 @@ button.acct:hover{border-color:var(--faint)}
 .cyc-chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .cyc-chip.flow.on{background:var(--cyc);border-color:var(--cyc);color:#fff}
 @media (max-width:640px){ .cyc-hero{justify-content:center} .cyc-ring{width:170px;height:170px} .cyc-acts{flex-direction:row;flex-wrap:wrap;justify-content:center} }
+/* Today tiles */
+.tiles-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+button.stat.tile{border:0;text-align:left;color:var(--fg);cursor:pointer;font:inherit}
+button.stat.tile:hover{background:var(--hover)}
+.tile-edit{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--side)}
+.tile-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.tile-opt{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:2px 4px 2px 2px}
+.tile-tog{flex:1;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:7px 8px;font-size:14px;color:var(--fg);text-align:left}
+.tile-opt:not(.on) .tile-tog{color:var(--muted)}
+.tile-tog .chk{pointer-events:none}
+.tile-ord{display:flex}
+.tile-ord .icon-btn:disabled{opacity:.3}
+@media (max-width:640px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} .stats>.stat:last-child:nth-child(odd){grid-column:1/-1} .tile-opts{grid-template-columns:minmax(0,1fr)} }
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -969,6 +982,33 @@ function page(icon,title,sub,actions,...content){
 }
 
 /* Today */
+const TILES={
+  calories:['Calories today',d=>[d.kcal.toLocaleString(),`of ${num(S.food.goal).toLocaleString()} goal`],'calories'],
+  habits:['Habits done',d=>[`${d.log.filter(id=>S.habits.list.some(x=>x.id===id)).length}/${S.habits.list.length}`,'today'],'habits'],
+  workouts:['Workouts',d=>[d.wkSessions,'this week'],'workouts'],
+  events:['Events today',d=>[d.evs.length,d.evs.length?'next: '+evTime(d.evs.find(e=>!e.start||e.start>=new Date().toTimeString().slice(0,5))||d.evs[d.evs.length-1]):'nothing scheduled'],'calendar'],
+  tasks:['Tasks due',d=>[d.due.length,d.due.length?'today or overdue':'all caught up'],'tasks'],
+  focus:['Weekly focus',d=>{ const f=(d.plan&&d.plan.focus)||[]; return [`${f.filter(x=>x.done).length}/${f.length}`,'done this week']; },'week'],
+  goals:['Yearly goals',()=>{ const gs=S.goals.items.filter(g=>num(g.year)===new Date().getFullYear()); return [gs.length?Math.round(gs.reduce((s,g)=>s+goalPct(g),0)/gs.length)+'%':'–',gs.length?`average across ${gs.length} goal${gs.length>1?'s':''}`:'no goals yet']; },'goals'],
+  movies:['Movies watched',()=>{ const y=String(new Date().getFullYear()); return [S.movies.items.filter(m=>m.status==='watched'&&(m.date||'').startsWith(y)).length,'this year']; },'movies'],
+  recipes:['Recipes saved',()=>[S.recipes.items.length,'in your collection'],'recipes']
+};
+const DEFAULT_TILES=['calories','habits','workouts','tasks'];
+function todayTiles(d){
+  const sel=(Array.isArray(S.prefs.todayTiles)?S.prefs.todayTiles:DEFAULT_TILES).filter(k=>TILES[k]);
+  const tiles=sel.map(k=>{ const [lab,fn,r]=TILES[k]; const [v,sub]=fn(d); return h('button',{type:'button',class:'stat tile',onclick:()=>go(r)},h('div',{class:'k'},lab),h('div',{class:'v'},v),h('div',{class:'s'},sub)); });
+  const toggle=k=>{ const cur=sel.slice(); const i=cur.indexOf(k); if(i>=0) cur.splice(i,1); else cur.push(k); S.prefs.todayTiles=cur; save('prefs'); };
+  const move=(k,n)=>{ const cur=sel.slice(); const i=cur.indexOf(k), j=i+n; if(j<0||j>=cur.length) return; [cur[i],cur[j]]=[cur[j],cur[i]]; S.prefs.todayTiles=cur; save('prefs'); };
+  return h('div',{style:'margin-bottom:28px'},
+    h('div',{class:'tiles-h'},h('span',{class:'small muted'},'At a glance'),h('button',{type:'button',class:'btn ghost sm',onclick:()=>{V.editTiles=!V.editTiles;render(true)}},ic('edit'),V.editTiles?'Done':'Customize')),
+    V.editTiles?h('div',{class:'tile-edit'},
+      h('p',{class:'small muted',style:'margin:0 0 8px'},'Tap to show or hide a tile. Use the arrows to change the order.'),
+      h('div',{class:'tile-opts'},Object.keys(TILES).map(k=>{ const on=sel.includes(k), i=sel.indexOf(k);
+        return h('div',{class:'tile-opt'+(on?' on':'')},
+          h('button',{type:'button',class:'tile-tog','aria-pressed':on?'true':'false',onclick:()=>toggle(k)},h('span',{class:'chk'+(on?' on':'')}),TILES[k][0]),
+          on?h('span',{class:'tile-ord'},h('button',{type:'button',class:'icon-btn','aria-label':'Move '+TILES[k][0]+' earlier',disabled:i===0,onclick:()=>move(k,-1)},ic('left')),h('button',{type:'button',class:'icon-btn','aria-label':'Move '+TILES[k][0]+' later',disabled:i===sel.length-1,onclick:()=>move(k,1)},ic('right'))):null); }))):null,
+    tiles.length?h('div',{class:'stats'},tiles):(V.editTiles?null:h('div',{class:'empty'},'No tiles shown. Tap Customize to add some.')));
+}
 function pageToday(){
   const t=today(), now=new Date();
   const hr=now.getHours(); const greet=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
@@ -980,10 +1020,7 @@ function pageToday(){
   const wk0=ymd(sow(now)); const wkSessions=S.workouts.sessions.filter(s=>s.date>=wk0&&s.date<=t).length;
   return page('today',greet,now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}),
     [btn('Event',()=>editEvent(null,{date:t}),'btn','plus'),btn('Task',()=>editTask(null,{due:t}),'btn','plus')],
-    h('div',{class:'stats',style:'margin-bottom:28px'},
-      h('div',{class:'stat'},h('div',{class:'k'},'Calories today'),h('div',{class:'v'},kcal.toLocaleString()),h('div',{class:'s'},`of ${num(S.food.goal).toLocaleString()} goal`)),
-      h('div',{class:'stat'},h('div',{class:'k'},'Habits done'),h('div',{class:'v'},`${log.filter(id=>S.habits.list.some(x=>x.id===id)).length}/${S.habits.list.length}`),h('div',{class:'s'},'today')),
-      h('div',{class:'stat'},h('div',{class:'k'},'Workouts'),h('div',{class:'v'},wkSessions),h('div',{class:'s'},'this week'))),
+    todayTiles({kcal,log,wkSessions,evs,due,plan}),
     h('div',{class:'grid2'},
       block('Schedule',btn('Open calendar',()=>go('calendar'),'btn ghost sm'), evs.length?h('div',{class:'rows'},evs.map(e=>h('div',{class:'row t-'+evColor(e)},h('span',{class:'dot'}),h('span',{class:'time'},evTime(e)),h('button',{class:'title grow',style:'flex:1',onclick:()=>editEvent(e)},e.title)))):h('div',{class:'empty'},'Nothing scheduled today.')),
       block('Tasks due',btn('All tasks',()=>go('tasks'),'btn ghost sm'), due.length?h('div',{class:'rows'},due.map(x=>taskRow(x))):h('div',{class:'empty'},'You’re all caught up.')),
