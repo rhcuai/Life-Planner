@@ -293,7 +293,12 @@ td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .mh-btn.on{background:var(--hover)}
 .mtoday{width:22px;height:22px;border:1.7px solid currentColor;border-radius:5px;display:grid;place-items:center;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .calm .ym-btn{font-family:var(--font-ui);font-weight:600;font-size:20px;letter-spacing:0;padding:4px 8px}
-.calm .cal-main{flex:1;min-height:0}
+.calm .cal-main{flex:1;min-height:0;overflow:hidden;touch-action:pan-y}
+.calm .swipe-track{position:relative;height:100%;will-change:transform}
+.calm .swipe-track>*{height:100%}
+.calm .swipe-side{position:absolute;top:0;width:100%;pointer-events:none}
+.calm .swipe-side.prev{left:-100%} .calm .swipe-side.next{left:100%}
+.calm .swipe-side>*{height:100%}
 .calm .month{border:0}
 .calm .month .dow{border:0;border-bottom:1px solid var(--line);text-align:center;font-size:11px;padding:0 0 5px;color:var(--muted)}
 .calm .month .cell{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:1px 1px 0;gap:1px;background:transparent}
@@ -830,11 +835,23 @@ const isCalMob=()=>window.innerWidth<=640;
 function calMobile(step,setYM,newDate){
   const c=V.cal, cur=c.cur, mode=c.mode, thisY=new Date().getFullYear();
   const title=MONTHS[cur.getMonth()]+(cur.getFullYear()!==thisY?' '+cur.getFullYear():'');
-  const main=h('div',{class:'cal-main'}, mode==='month'?monthGrid(cur,true):weekGrid(cur,mode==='day'?1:7));
-  let sx=null, sy=null;
-  main.addEventListener('touchstart',e=>{ const t=e.touches[0]; sx=t.clientX; sy=t.clientY; },{passive:true});
-  main.addEventListener('touchend',e=>{ if(sx===null) return; const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy; sx=null;
-    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){ V.mview=false; V.pick=null; step(dx<0?1:-1); } },{passive:true});
+  const view=d=>mode==='month'?monthGrid(d,true):weekGrid(d,mode==='day'?1:7);
+  const nb=n=>mode==='month'?new Date(cur.getFullYear(),cur.getMonth()+n,1):addD(cur,n*(mode==='week'?7:1));
+  const main=h('div',{class:'cal-main'}, h('div',{class:'swipe-track'}, h('div',{class:'swipe-side prev','aria-hidden':'true',inert:''},view(nb(-1))), view(cur), h('div',{class:'swipe-side next','aria-hidden':'true',inert:''},view(nb(1)))));
+  const pane=main.firstChild; let sx=null, sy=null, st=0, lock=null, dx=0, busy=false;
+  const ease='transform .26s cubic-bezier(.2,.75,.25,1)';
+  main.addEventListener('touchstart',e=>{ if(busy||e.touches.length>1) return; const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); lock=null; dx=0; pane.style.transition='none'; },{passive:true});
+  main.addEventListener('touchmove',e=>{ if(sx===null) return; const t=e.touches[0]; const mx=t.clientX-sx, my=t.clientY-sy;
+    if(lock===null&&(Math.abs(mx)>8||Math.abs(my)>8)) lock=Math.abs(mx)>Math.abs(my)?'x':'y';
+    if(lock!=='x') return; if(e.cancelable) e.preventDefault(); dx=mx; pane.style.transform=`translate3d(${dx}px,0,0)`; },{passive:false});
+  const end=()=>{ if(sx===null) return; sx=null; if(lock!=='x'){ pane.style.transform=''; return; }
+    const W=main.clientWidth||window.innerWidth, v=Math.abs(dx)/Math.max(1,Date.now()-st);
+    if(Math.abs(dx)>W*0.22||(v>0.35&&Math.abs(dx)>30)){ busy=true; const dir=dx<0?1:-1;
+      pane.style.transition=ease; pane.style.transform=`translate3d(${-dir*W}px,0,0)`;
+      let done=false; const fin=()=>{ if(done) return; done=true; V.mview=false; V.pick=null; step(dir); };
+      pane.addEventListener('transitionend',fin,{once:true}); setTimeout(fin,300);
+    } else { pane.style.transition=ease; pane.style.transform='translate3d(0,0,0)'; } };
+  main.addEventListener('touchend',end,{passive:true}); main.addEventListener('touchcancel',end,{passive:true});
   const tday=new Date().getDate();
   return h('div',{class:'page wide calpage calm'},
     h('div',{class:'mcal-head'},
