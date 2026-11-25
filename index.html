@@ -439,6 +439,39 @@ button.stat.tile:hover{background:var(--hover)}
 .pc-tip{position:absolute;transform:translate(-50%,calc(-100% - 12px));background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:8px;padding:6px 10px;font-size:12.5px;white-space:nowrap;pointer-events:none;z-index:5}
 .pc-tip span{color:var(--muted)}
 @media (max-width:820px){ .wk-week{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px} .wk-day{padding:5px 3px;min-height:80px} .wk-r{font-size:10.5px;padding:3px 4px} .wk-dh{flex-direction:column;align-items:center} }
+/* Food finder & calculator */
+.modal.ff{display:flex;flex-direction:column;gap:12px}
+.ff-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ff-top h2{margin:0}
+.ff-search{display:flex;gap:8px}
+.ff-search .input{flex:1;min-width:0}
+.ff-res{max-height:50vh;overflow:auto;border-top:1px solid var(--line)}
+.ff-row{border:0;border-bottom:1px solid var(--line);background:transparent;width:100%;color:var(--fg);cursor:pointer}
+.ff-row:hover{background:var(--hover)}
+.ff-rn{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ff-pick{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.ff-name{font-weight:600;font-size:16px}
+.ff-amt{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ff-amt .input{width:100px}
+.ff-nut{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;width:100%}
+.ff-nut div{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13.5px;background:var(--card)}
+.ff-nut span{color:var(--muted)}
+.ff-photo{display:flex;flex-direction:column;gap:10px}
+.ff-img{max-width:100%;max-height:220px;border-radius:10px;object-fit:cover;align-self:flex-start}
+.ff-est{display:flex;flex-direction:column;gap:10px}
+.ff-ei{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--side)}
+.ff-ei.off{opacity:.5}
+.ff-eh{display:flex;align-items:center;gap:8px}
+.ff-en{flex:1;min-width:0;font-weight:600}
+.ff-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+.ff-grid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted)}
+.mbars{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.mb-h{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:3px}
+.mb-h b{color:var(--fg)}
+.mbar .bar{height:6px}
+.calc-h{display:flex;align-items:center;gap:6px}
+.calc-h .input{width:64px}
+.calc-out{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px;background:var(--side)}
 /* Calendars panel */
 .cal-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;align-items:start}
 .cal-panel{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;font-size:13px}
@@ -1849,32 +1882,200 @@ function pageWorkouts(){
 
 /* Calories */
 const MEALS=['Breakfast','Lunch','Dinner','Snacks'];
+const NUTS=[['kcal','Calories','',1],['p','Protein','g',1],['c','Carbs','g',1],['f','Fat','g',1],['fib','Fiber','g',1],['sug','Sugar','g',1],['na','Sodium','mg',0]];
+const r1=v=>Math.round(num(v)*10)/10;
+let SAMPLE=null, SAMPLE_IMG=false;
+async function initSample(){ if(!window.claude||typeof window.claude.use!=='function') return; try{ SAMPLE=await window.claude.use('sample'); if(SAMPLE){ const l=await SAMPLE.limits().catch(()=>null); SAMPLE_IMG=!!(l&&l.images); if(route()==='calories'&&!closeModal) render(true); } }catch(e){ SAMPLE=null; } }
 function editFood(e,defaults={}){
   const isNew=!e;
   openForm({title:isNew?'Add food':'Edit food',data:e||Object.assign({date:V.food,meal:'Lunch'},defaults),
     fields:[{key:'name',label:'Food',full:true,required:true,ph:'e.g. Greek yogurt with berries'},{key:'meal',label:'Meal',type:'select',options:MEALS},{key:'kcal',label:'Calories',type:'number'},
-      {key:'p',label:'Protein (g)',type:'number'},{key:'c',label:'Carbs (g)',type:'number'},{key:'f',label:'Fat (g)',type:'number'},{key:'date',label:'Date',type:'date'}],
+      {key:'p',label:'Protein (g)',type:'number'},{key:'c',label:'Carbs (g)',type:'number'},{key:'f',label:'Fat (g)',type:'number'},{key:'fib',label:'Fiber (g)',type:'number'},{key:'sug',label:'Sugar (g)',type:'number'},{key:'na',label:'Sodium (mg)',type:'number'},
+      {key:'serving',label:'Amount',ph:'e.g. 1 cup, 150 g'},{key:'date',label:'Date',type:'date'}],
     onSave:o=>{ if(isNew) S.food.entries.push(Object.assign({id:uid()},o)); else Object.assign(e,o); save('food'); },
     onDelete:isNew?null:()=>{ S.food.entries=S.food.entries.filter(x=>x!==e); save('food'); }});
 }
+/* Online food databases (work on the planner's own web address; blocked inside Claude) */
+const USDA_IDS={kcal:[1008,2047,2048],p:[1003],c:[1005],f:[1004],fib:[1079],sug:[2000,1063],na:[1093]};
+async function searchUSDA(q){
+  const key=(S.food.usdaKey||'').trim()||'DEMO_KEY';
+  const r=await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(q)}&pageSize=20&dataType=${encodeURIComponent('Foundation,SR Legacy,Survey (FNDDS),Branded')}`);
+  if(r.status===429) throw new Error('busy'); if(!r.ok) throw new Error('http '+r.status);
+  const j=await r.json();
+  return (j.foods||[]).map(f=>{ const per={}; for(const k in USDA_IDS){ const n=(f.foodNutrients||[]).find(x=>USDA_IDS[k].includes(x.nutrientId)&&(k!=='kcal'||/kcal/i.test(x.unitName||'KCAL'))); per[k]=n?num(n.value):0; }
+    const sz=num(f.servingSize), unit=(f.servingSizeUnit||'').toLowerCase();
+    return {name:titleCase(f.description||''),brand:f.brandName||f.brandOwner||'',src:'USDA',per100:per,serving:sz&&(unit==='g'||unit==='grm'||unit==='ml')?sz:0,servingText:f.householdServingFullText||''}; }).filter(x=>x.name);
+}
+async function searchOFF(q){
+  const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,nutriments,serving_quantity,serving_size`);
+  if(!r.ok) throw new Error('http '+r.status); const j=await r.json();
+  return (j.products||[]).filter(p=>p.product_name&&p.nutriments&&p.nutriments['energy-kcal_100g']!=null).map(p=>{ const n=p.nutriments;
+    return {name:p.product_name,brand:(p.brands||'').split(',')[0],src:'Open Food Facts',per100:{kcal:num(n['energy-kcal_100g']),p:num(n.proteins_100g),c:num(n.carbohydrates_100g),f:num(n.fat_100g),fib:num(n.fiber_100g),sug:num(n.sugars_100g),na:num(n.sodium_100g)*1000},serving:num(p.serving_quantity),servingText:p.serving_size||''}; });
+}
+const titleCase=s=>s.length>3&&s===s.toUpperCase()?s.toLowerCase().replace(/(^|[\s,(])\w/g,m=>m.toUpperCase()):s;
+async function askClaudeFood(text,image){
+  const prompt=`You estimate nutrition for a food diary.${image?' The photo shows a meal or food.':''} ${text?`The person says: "${text.slice(0,600)}".`:''}
+Identify each separate food${image?' visible in the photo':''}, estimate a realistic portion, and estimate its nutrition for that portion.
+Reply with only JSON: {"items":[{"name":"Scrambled eggs","serving":"2 large eggs","kcal":180,"p":12,"c":2,"f":14,"fib":0,"sug":1,"na":340,"confidence":"medium"}],"note":"one short sentence about what was hard to judge, or empty"}
+Units: kcal; p, c, f, fib (fiber), sug (sugar) in grams; na (sodium) in milligrams. confidence is low, medium or high. Use numbers only, no ranges.`;
+  const res=await SAMPLE.json(prompt,image?{images:[image]}:{});
+  const items=(res&&Array.isArray(res.items)?res.items:[]).filter(x=>x&&x.name).slice(0,12).map(x=>{ const o={name:String(x.name).slice(0,120),serving:String(x.serving||'').slice(0,60),confidence:String(x.confidence||'')}; NUTS.forEach(([k])=>o[k]=Math.max(0,r1(x[k]))); return o; });
+  return {items,note:res&&res.note?String(res.note).slice(0,240):''};
+}
+function foodFinder(meal){
+  if(closeModal) closeModal();
+  const st={tab:'search',q:'',results:null,busy:false,err:'',est:null,meal:meal||'Lunch',picked:null,grams:100,servings:1};
+  const body=h('div',{class:'ff-body'});
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',onKey); closeModal=null; };
+  const onKey=e=>{ if(e.key==='Escape') close(); };
+  const modal=h('div',{class:'modal ff',role:'dialog','aria-label':'Add food'});
+  const ov=h('div',{class:'overlay',onmousedown:e=>{ if(e.target===ov) close(); }},modal);
+  const addEntry=(o)=>{ S.food.entries.push(Object.assign({id:uid(),date:V.food,meal:st.meal},o)); save('food'); toast(`Added ${o.name}`); };
+  const nutLine=o=>[`${Math.round(num(o.kcal))} kcal`,`P ${r1(o.p)}g`,`C ${r1(o.c)}g`,`F ${r1(o.f)}g`].join(' · ');
+  const draw=()=>{
+    const online=!window.claude; const kids=[];
+    kids.push(h('div',{class:'ff-top'},h('h2',null,'Add food'),h('select',{class:'input',style:'width:auto','aria-label':'Meal',onchange:e=>st.meal=e.target.value},MEALS.map(m=>h('option',{selected:m===st.meal},m)))));
+    const tabs=[['search','Search'],['photo','Photo'],['manual','Enter it myself']];
+    kids.push(seg(tabs,st.tab,v=>{st.tab=v;st.err='';draw();}));
+    if(st.picked){ const P=st.picked, base=P.serving||100; if(!st.grams) st.grams=base;
+      const sc=num(st.grams)/100, vals={}; NUTS.forEach(([k])=>vals[k]=r1(num(P.per100[k])*sc)); vals.kcal=Math.round(vals.kcal);
+      kids.push(h('div',{class:'ff-pick'},h('button',{type:'button',class:'btn ghost sm',onclick:()=>{st.picked=null;draw();}},ic('back'),'Back to results'),
+        h('div',{class:'ff-name'},P.name,P.brand?h('span',{class:'small muted'},' · '+P.brand):null),
+        h('div',{class:'ff-amt'},h('label',{for:'ffg'},'Amount'),h('input',{class:'input',id:'ffg',type:'number',inputmode:'decimal',min:'0',step:'any',value:st.grams,oninput:e=>{st.grams=num(e.target.value);upd();}}),h('span',{class:'muted'},'grams'),
+          P.serving?btn(`1 serving (${P.serving} g)`,()=>{st.grams=P.serving;draw();},'btn sm'):null),
+        P.servingText?h('div',{class:'small faint'},'Serving on label: '+P.servingText):null,
+        h('div',{class:'ff-nut',id:'ffnut'}),
+        h('div',{class:'small faint'},`Source: ${P.src} (per 100 g, scaled to your amount)`),
+        h('div',{class:'modal-acts'},h('div'),h('div',null,btn('Add',()=>{ const sc2=num(st.grams)/100, o={name:P.name+(P.brand?` (${P.brand})`:''),serving:`${st.grams} g`,src:P.src}; NUTS.forEach(([k])=>o[k]=r1(num(P.per100[k])*sc2)); o.kcal=Math.round(o.kcal); addEntry(o); close(); },'btn primary')))));
+      const upd=()=>{ const el=$('#ffnut'); if(!el) return; const sc2=num(st.grams)/100; el.replaceChildren(...NUTS.map(([k,l,u])=>h('div',null,h('span',null,l),h('b',{class:'num'},(k==='kcal'?Math.round(num(P.per100[k])*sc2):r1(num(P.per100[k])*sc2))+(u?' '+u:''))))); };
+      modal.replaceChildren(...kids); upd(); return; }
+    if(st.tab==='search'){
+      const inp=h('input',{class:'input',id:'ffq',placeholder:online?'Search foods, e.g. banana, chicken breast':'Describe it, e.g. 2 eggs and toast with butter',value:st.q,oninput:e=>st.q=e.target.value,onkeydown:e=>{ if(e.key==='Enter'){ e.preventDefault(); go2(); } }});
+      const go2=async()=>{ const q=st.q.trim(); if(!q||st.busy) return; st.busy=true; st.err=''; st.results=null; st.est=null; draw();
+        try{
+          if(online){ let res=[]; try{ res=await searchUSDA(q); }catch(e){ if(String(e.message)!=='busy') console.warn(e); }
+            if(res.length<5){ try{ res=res.concat(await searchOFF(q)); }catch(e){} }
+            st.results=res; if(!res.length) st.err='No matches. Try a simpler name, or enter it yourself.'; }
+          else if(SAMPLE){ st.est=await askClaudeFood(q,null); if(!st.est.items.length) st.err='Claude couldn’t estimate that. Try describing it differently.'; }
+          else st.err='Search isn’t available here.';
+        }catch(e){ st.err=e&&e.code==='not_granted'?'Allow this page to use Claude to estimate foods.':e&&e.code==='rate_limited'?'Too many requests right now. Try again in a bit.':'Couldn’t reach the food database. Check your connection and try again.'; }
+        st.busy=false; draw(); };
+      kids.push(h('div',{class:'ff-search'},inp,btn(st.busy?'Searching…':(online?'Search':'Estimate'),go2,'btn primary')));
+      kids.push(h('p',{class:'small faint',style:'margin:0'},online?'Searches the USDA food database and Open Food Facts (packaged foods).':'Inside Claude, Claude estimates the nutrition from your description. Numbers are estimates.'));
+      if(st.results&&st.results.length) kids.push(h('div',{class:'rows ff-res'},st.results.slice(0,30).map(R=>{ const v=R.serving?num(R.per100.kcal)*R.serving/100:num(R.per100.kcal);
+        return h('button',{type:'button',class:'row ff-row',onclick:()=>{st.picked=R;st.grams=R.serving||100;draw();}},h('div',{style:'flex:1;min-width:0;text-align:left'},h('div',{class:'ff-rn'},R.name),h('div',{class:'small muted'},[R.brand,R.src].filter(Boolean).join(' · '))),
+          h('span',{class:'small num',style:'white-space:nowrap'},`${Math.round(v)} kcal`,h('span',{class:'faint'},R.serving?` / ${R.serving} g`:' / 100 g'))); })));
+    }
+    if(st.tab==='photo'){
+      if(!SAMPLE_IMG){ kids.push(h('div',{class:'callout'},h('p',{style:'margin:0'},online?'Photo estimates need Claude, so they work when you open your planner inside Claude (the claude.ai link). On this web address, use Search instead: it looks foods up in real nutrition databases.':'Photo estimates aren’t available in this view. Use the Search tab to describe your food instead.'))); }
+      else { const fi=h('input',{type:'file',accept:'image/*',id:'ffphoto',style:'display:none',onchange:async e=>{ const file=e.target.files&&e.target.files[0]; if(!file) return; st.busy=true; st.err=''; st.est=null; st.photo=URL.createObjectURL(file); draw();
+          try{ st.est=await askClaudeFood(($('#ffhint')||{}).value||'',file); if(!st.est.items.length) st.err='Claude couldn’t find food in that photo.'; }catch(err){ st.err=err&&err.code==='not_granted'?'Allow this page to use Claude to read photos.':err&&err.code==='image_rejected'?'That photo couldn’t be read. Try another.':err&&err.code==='rate_limited'?'Too many requests right now. Try again in a bit.':'Something went wrong. Try again.'; }
+          st.busy=false; draw(); }});
+        kids.push(h('div',{class:'ff-photo'},st.photo?h('img',{src:st.photo,alt:'Your food photo',class:'ff-img'}):null,
+          h('input',{class:'input',id:'ffhint',placeholder:'Optional: add details, e.g. “large bowl, no cheese”'}),
+          h('div',{style:'display:flex;gap:8px;flex-wrap:wrap'},btn(st.busy?'Looking at your photo…':(st.photo?'Use another photo':'Take or choose a photo'),()=>fi.click(),'btn primary'),fi),
+          h('p',{class:'small faint',style:'margin:0'},'Claude estimates the foods, portions and nutrition from the photo. Check and adjust before adding.'))); }
+    }
+    if(st.tab==='manual'){ close(); editFood(null,{meal:st.meal}); return; }
+    if(st.est&&st.est.items.length){ const it=st.est.items; it.forEach(x=>{ if(x._on===undefined) x._on=true; });
+      kids.push(h('div',{class:'ff-est'},h('div',{class:'small muted'},'Estimated by Claude. Edit any number before adding.'),
+        it.map((x,i)=>h('div',{class:'ff-ei'+(x._on?'':' off')},
+          h('div',{class:'ff-eh'},h('button',{type:'button',class:'chk'+(x._on?' on':''),role:'checkbox','aria-checked':x._on?'true':'false','aria-label':'Include '+x.name,onclick:()=>{x._on=!x._on;draw();}}),
+            h('input',{class:'input ff-en',value:x.name,'aria-label':'Food name',oninput:e=>x.name=e.target.value}),x.confidence?tag(x.confidence+' confidence',x.confidence==='high'?'green':x.confidence==='low'?'orange':'gray'):null),
+          h('div',{class:'small muted'},x.serving),
+          h('div',{class:'ff-grid'},NUTS.map(([k,l,u])=>h('label',null,h('span',null,l+(u?` (${u})`:'')),h('input',{class:'input',type:'number',inputmode:'decimal',min:'0',step:'any',value:x[k],oninput:e=>x[k]=num(e.target.value)})))))),
+        st.est.note?h('p',{class:'small faint',style:'margin:0'},st.est.note):null,
+        h('div',{class:'modal-acts'},h('div'),h('div',null,btn('Cancel',close,'btn ghost'),btn(`Add ${it.filter(x=>x._on).length} item${it.filter(x=>x._on).length===1?'':'s'}`,()=>{ const on=it.filter(x=>x._on); on.forEach(x=>{ const o={name:x.name,serving:x.serving,src:'Claude estimate'}; NUTS.forEach(([k])=>o[k]=r1(x[k])); o.kcal=Math.round(o.kcal); S.food.entries.push(Object.assign({id:uid(),date:V.food,meal:st.meal},o)); }); if(on.length){ save('food'); toast(`Added ${on.length} item${on.length>1?'s':''}`); } close(); },'btn primary')))));
+    }
+    if(st.busy&&!st.est) kids.push(h('div',{class:'small muted'},'Working on it…'));
+    if(st.err) kids.push(h('div',{class:'small over'},st.err));
+    if(!st.est) kids.push(h('div',{class:'modal-acts'},h('div'),h('div',null,btn('Close',close,'btn ghost'))));
+    modal.replaceChildren(...kids);
+    if(st.tab==='search'&&!st.busy){ const q=$('#ffq'); if(q&&!st.results&&!st.est) setTimeout(()=>q.focus(),20); }
+  };
+  closeModal=close; document.addEventListener('keydown',onKey); document.body.append(ov); draw();
+}
+/* Calorie target calculator (Mifflin-St Jeor) */
+const ACT=[[1.2,'Mostly sitting (little exercise)'],[1.375,'Light (exercise 1–3 days a week)'],[1.55,'Moderate (3–5 days a week)'],[1.725,'Very active (6–7 days a week)'],[1.9,'Extra active (hard training or physical job)']];
+function calcTarget(P){
+  const kg=num(P.weight)*0.4536, cm=(num(P.ft)*12+num(P.inch))*2.54, age=num(P.age);
+  if(!kg||!cm||!age) return null;
+  const bmr=10*kg+6.25*cm-5*age+(P.sex==='male'?5:-161);
+  const tdee=bmr*num(P.act||1.2);
+  const diff=num(P.goalWeight)?num(P.goalWeight)-num(P.weight):0;
+  const dir=diff<-0.5?'lose':diff>0.5?'gain':'keep';
+  const pace=dir==='keep'?0:Math.abs(num(P.pace)||(dir==='lose'?1:0.5));
+  let kcal=tdee+(dir==='lose'?-1:1)*pace*500;
+  const floor=P.sex==='male'?1500:1200; const low=dir==='lose'&&kcal<floor; if(low) kcal=floor;
+  kcal=Math.round(kcal/10)*10;
+  const weeks=pace?Math.abs(diff)/pace:0; const realWeeks=low&&pace?Math.abs(diff)/((tdee-floor)/500):weeks;
+  const target=num(P.goalWeight)||num(P.weight);
+  const p=Math.round(Math.min(target,num(P.weight))*(dir==='gain'?0.9:0.8)), f=Math.round(kcal*0.28/9), c=Math.max(0,Math.round((kcal-p*4-f*9)/4));
+  return {bmr:Math.round(bmr),tdee:Math.round(tdee),kcal,dir,pace,weeks:realWeeks,low,floor,p,c,f,by:realWeeks?ymd(addD(new Date(),Math.round(realWeeks*7))):''};
+}
+function openCalculator(){
+  if(closeModal) closeModal();
+  const P=Object.assign({sex:'female',age:'',ft:5,inch:6,weight:'',goalWeight:'',act:1.375,pace:1},S.food.profile||{});
+  const modal=h('div',{class:'modal',role:'dialog','aria-label':'Calorie calculator'}); const out=h('div',{class:'calc-out'});
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',onKey); closeModal=null; };
+  const onKey=e=>{ if(e.key==='Escape') close(); };
+  const ov=h('div',{class:'overlay',onmousedown:e=>{ if(e.target===ov) close(); }},modal);
+  const inp=(k,ph,attrs={})=>h('input',Object.assign({class:'input',type:'number',inputmode:'decimal',min:'0',step:'any',value:P[k],placeholder:ph,oninput:e=>{P[k]=e.target.value;upd();}},attrs));
+  const sel=(k,opts)=>h('select',{class:'input',onchange:e=>{P[k]=e.target.value;upd();}},opts.map(([v,l])=>h('option',{value:v,selected:String(P[k])===String(v)},l)));
+  const fld=(label,ctl,full)=>h('div',{class:'field'+(full?' full':'')},h('span',{class:'lbl'},label),ctl);
+  const paceSel=h('div',{id:'paceBox'});
+  const upd=()=>{
+    const r=calcTarget(P); const dir=r?r.dir:(num(P.goalWeight)&&num(P.weight)?(num(P.goalWeight)<num(P.weight)?'lose':'gain'):'lose');
+    const opts=dir==='gain'?[[0.25,'¼ lb a week (slow, lean)'],[0.5,'½ lb a week (recommended)'],[1,'1 lb a week (fast)']]:[[0.5,'½ lb a week (easy)'],[1,'1 lb a week (recommended)'],[1.5,'1½ lb a week (hard)'],[2,'2 lb a week (very hard)']];
+    if(!opts.some(o=>num(o[0])===num(P.pace))) P.pace=dir==='gain'?0.5:1;
+    paceSel.replaceChildren(dir==='keep'?h('div',{class:'small muted',style:'padding-top:8px'},'Same as your current weight: maintenance calories.'):sel('pace',opts));
+    if(!r){ out.replaceChildren(h('div',{class:'empty'},'Fill in your age, height and weight to see your numbers.')); return; }
+    const verb=r.dir==='lose'?'lose':r.dir==='gain'?'gain':'keep';
+    out.replaceChildren(
+      h('div',{class:'calc-hero'},h('div',{class:'small muted'},`Eat about this much a day to ${verb} weight`),h('div',{class:'big'},r.kcal.toLocaleString(),h('span',{class:'muted',style:'font-size:16px;font-weight:500'},' kcal'))),
+      h('div',{class:'macro'},h('span',null,'Protein ',h('b',null,r.p+'g')),h('span',null,'Carbs ',h('b',null,r.c+'g')),h('span',null,'Fat ',h('b',null,r.f+'g'))),
+      h('div',{class:'small muted'},`Your body burns about ${r.tdee.toLocaleString()} kcal a day (${r.bmr.toLocaleString()} at rest).`+(r.dir!=='keep'&&r.by?` At this pace you’d reach ${num(P.goalWeight)} lb around ${fmtD(r.by,{month:'long',day:'numeric',year:'numeric'})} (${Math.round(r.weeks)} weeks).`:'')),
+      r.low?h('div',{class:'small over'},`That pace would put you under ${r.floor.toLocaleString()} kcal a day, which is generally too low without a doctor, so the target stops there and it will take a bit longer.`):'',
+      h('p',{class:'small faint',style:'margin:0'},'An estimate from the Mifflin-St Jeor formula, not medical advice. Bodies vary: adjust after 2 to 3 weeks based on your real results, and check with a doctor for medical conditions, pregnancy or big changes.'));
+  };
+  modal.append(h('h2',null,'Calorie calculator'),
+    h('div',{class:'fields'},
+      fld('Sex (for the formula)',sel('sex',[['female','Female'],['male','Male']])), fld('Age',inp('age','Years')),
+      fld('Height',h('div',{class:'calc-h'},inp('ft','ft',{'aria-label':'Feet'}),h('span',{class:'muted'},'ft'),inp('inch','in',{'aria-label':'Inches'}),h('span',{class:'muted'},'in'))),
+      fld('Current weight (lb)',inp('weight','lb')), fld('Goal weight (lb)',inp('goalWeight','lb')),
+      fld('Activity',sel('act',ACT.map(([v,l])=>[v,l]))), fld('Pace',paceSel)),
+    out,
+    h('div',{class:'modal-acts'},h('div'),h('div',null,btn('Close',close,'btn ghost'),btn('Use as my daily goal',()=>{ const r=calcTarget(P); S.food.profile=P; if(!r){ save('food'); toast('Fill in your details first'); return; } S.food.goal=r.kcal; S.food.macros={p:r.p,c:r.c,f:r.f}; save('food'); close(); toast(`Daily goal set to ${r.kcal.toLocaleString()} kcal`); },'btn primary'))));
+  closeModal=close; document.addEventListener('keydown',onKey); document.body.append(ov); upd();
+}
+function editFoodGoals(){
+  const M=S.food.macros||{};
+  openForm({title:'Daily goals',data:{goal:S.food.goal,p:M.p,c:M.c,f:M.f,usdaKey:S.food.usdaKey},
+    fields:[{key:'goal',label:'Calories per day',type:'number',full:true},{key:'p',label:'Protein (g)',type:'number'},{key:'c',label:'Carbs (g)',type:'number'},{key:'f',label:'Fat (g)',type:'number'},
+      {key:'_',type:'note',text:'Not sure? Use the Calculator to work these out from your goal weight.'},
+      ...(!window.claude?[{key:'usdaKey',label:'Your USDA API key (optional)',full:true,ph:'Leave empty to use the shared key',hint:'Food search uses a free shared key that allows about 30 searches an hour. Get your own free key at fdc.nal.usda.gov to search more.'}]:[])],
+    onSave:o=>{ S.food.goal=num(o.goal)||2000; S.food.macros={p:num(o.p)||'',c:num(o.c)||'',f:num(o.f)||''}; if(o.usdaKey!==undefined) S.food.usdaKey=o.usdaKey; save('food'); }});
+}
 function pageFood(){
   const d=V.food, t=today(); const es=S.food.entries.filter(e=>e.date===d);
-  const sum=k=>es.reduce((s,e)=>s+num(e[k]),0); const kcal=sum('kcal'), goal=num(S.food.goal)||2000; const left=goal-kcal;
+  const sum=k=>es.reduce((s,e)=>s+num(e[k]),0); const kcal=Math.round(sum('kcal')), goal=num(S.food.goal)||2000; const left=goal-kcal; const MG=S.food.macros||{};
   const days=[...Array(7)].map((_,i)=>{ const x=ymd(addD(pd(d),i-6)); return {ds:x,k:S.food.entries.filter(e=>e.date===x).reduce((s,e)=>s+num(e.kcal),0)}; });
   const top=Math.max(goal*1.25,...days.map(x=>x.k));
   const recent=[]; const seen=new Set(); [...S.food.entries].reverse().forEach(e=>{ const k=e.name.toLowerCase(); if(!seen.has(k)&&recent.length<8){seen.add(k);recent.push(e);} });
-  return page('calories','Calories','Log what you eat and keep an eye on your daily target and macros.',[btn('Daily goal',()=>openForm({title:'Daily calorie goal',data:{goal},fields:[{key:'goal',label:'Calories per day',type:'number',full:true}],onSave:o=>{S.food.goal=num(o.goal)||2000;save('food')}}),'btn'),btn('Add food',()=>editFood(null),'btn primary','plus')],
+  const mbar=(k,l)=>{ const v=sum(k), g=num(MG[k]); return h('div',{class:'mbar'},h('div',{class:'mb-h'},h('span',null,l),h('b',{class:'num'},Math.round(v)+'g',g?h('span',{class:'muted'},` / ${g}g`):null)),g?h('div',{class:'bar'+(v>g*1.1?' over':'')},h('i',{style:`width:${Math.min(100,v/g*100)}%`})):null); };
+  return page('calories','Calories','Log what you eat and keep an eye on your daily target and macros.',[btn('Calculator',openCalculator,'btn'),btn('Goals',editFoodGoals,'btn'),btn('Add food',()=>foodFinder(),'btn primary','plus')],
     h('div',{style:'margin-bottom:18px'},navrow(d===t?'Today':fmtD(d,{weekday:'long',month:'long',day:'numeric'}),()=>{V.food=ymd(addD(pd(d),-1));render(true)},()=>{V.food=ymd(addD(pd(d),1));render(true)},()=>{V.food=t;render(true)})),
     h('div',{class:'grid2',style:'margin-bottom:28px'},
       h('div',{class:'block'}, h('div',{class:'small muted'},'Eaten'), h('div',{style:'display:flex;align-items:baseline;gap:8px;flex-wrap:wrap'},h('span',{class:'big'},kcal.toLocaleString()),h('span',{class:'muted'},`/ ${goal.toLocaleString()} kcal`)),
         h('div',{class:'bar'+(kcal>goal?' over':''),style:'height:10px'},h('i',{style:`width:${Math.min(100,kcal/goal*100)}%`})),
         h('div',{class:'small '+(left<0?'over':'muted')},left>=0?`${left.toLocaleString()} kcal left`:`${(-left).toLocaleString()} kcal over`),
-        h('div',{class:'macro'},h('span',null,'Protein ',h('b',null,Math.round(sum('p'))+'g')),h('span',null,'Carbs ',h('b',null,Math.round(sum('c'))+'g')),h('span',null,'Fat ',h('b',null,Math.round(sum('f'))+'g')))),
-      block('Last 7 days',null,h('div',{class:'chart'},h('div',{class:'goal',style:`bottom:${goal/top*100}%`},h('em',null,'goal')),days.map(x=>h('div',{class:'col'},x.k?h('span',null,x.k.toLocaleString()):null,h('i',{class:(x.k>goal?'over':'')+(x.ds===d?'':' dim'),style:`height:${x.k/top*100}%`})))),h('div',{class:'chart-x'},days.map(x=>h('span',null,dowName(pd(x.ds)).slice(0,2))))) ),
-    h('div',{class:'grid2'}, MEALS.map(meal=>{ const list=es.filter(e=>e.meal===meal); const mk=list.reduce((s,e)=>s+num(e.kcal),0);
-      return h('section',{class:'block'},h('div',{class:'block-h'},h('h3',null,`${meal}${mk?` · ${mk.toLocaleString()} kcal`:''}`),btn('Add',()=>editFood(null,{meal}),'btn ghost sm','plus')),
-        list.length?h('div',{class:'rows'},list.map(e=>h('div',{class:'row'},h('button',{class:'title grow',style:'flex:1',onclick:()=>editFood(e)},e.name),h('span',{class:'small faint num',style:'white-space:nowrap'},[e.p&&`P ${e.p}`,e.c&&`C ${e.c}`,e.f&&`F ${e.f}`].filter(Boolean).join(' · ')),h('span',{class:'num',style:'white-space:nowrap'},num(e.kcal).toLocaleString())))):h('div',{class:'empty'},'Nothing logged.')); })),
-    recent.length?h('div',{class:'block',style:'margin-top:28px'},h('div',{class:'block-h'},h('h3',null,'Add again')),h('div',{class:'tags'},recent.map(e=>h('button',{type:'button',class:'btn sm',onclick:()=>{ S.food.entries.push({id:uid(),name:e.name,meal:e.meal,kcal:e.kcal,p:e.p,c:e.c,f:e.f,date:d}); save('food'); toast(`Added ${e.name}`); }},'+ ',e.name,h('span',{class:'faint'},` ${num(e.kcal)}`))))):null);
+        h('div',{class:'mbars'},mbar('p','Protein'),mbar('c','Carbs'),mbar('f','Fat')),
+        h('div',{class:'macro'},h('span',null,'Fiber ',h('b',null,Math.round(sum('fib'))+'g')),h('span',null,'Sugar ',h('b',null,Math.round(sum('sug'))+'g')),h('span',null,'Sodium ',h('b',null,Math.round(sum('na')).toLocaleString()+'mg')))),
+      block('Last 7 days',null,h('div',{class:'chart'},h('div',{class:'goal',style:`bottom:${goal/top*100}%`},h('em',null,'goal')),days.map(x=>h('div',{class:'col'},x.k?h('span',null,Math.round(x.k).toLocaleString()):null,h('i',{class:(x.k>goal?'over':'')+(x.ds===d?'':' dim'),style:`height:${x.k/top*100}%`})))),h('div',{class:'chart-x'},days.map(x=>h('span',null,dowName(pd(x.ds)).slice(0,2))))) ),
+    h('div',{class:'grid2'}, MEALS.map(meal=>{ const list=es.filter(e=>e.meal===meal); const mk=Math.round(list.reduce((s,e)=>s+num(e.kcal),0));
+      return h('section',{class:'block'},h('div',{class:'block-h'},h('h3',null,`${meal}${mk?` · ${mk.toLocaleString()} kcal`:''}`),btn('Add',()=>foodFinder(meal),'btn ghost sm','plus')),
+        list.length?h('div',{class:'rows'},list.map(e=>h('div',{class:'row'},h('button',{class:'title grow',style:'flex:1;min-width:0;text-align:left',onclick:()=>editFood(e)},e.name,e.src==='Claude estimate'?h('span',{class:'small faint'},' · est.'):null),h('span',{class:'small faint num',style:'white-space:nowrap'},[e.p&&`P ${Math.round(e.p)}`,e.c&&`C ${Math.round(e.c)}`,e.f&&`F ${Math.round(e.f)}`].filter(Boolean).join(' · ')),h('span',{class:'num',style:'white-space:nowrap'},Math.round(num(e.kcal)).toLocaleString())))):h('div',{class:'empty'},'Nothing logged.')); })),
+    recent.length?h('div',{class:'block',style:'margin-top:28px'},h('div',{class:'block-h'},h('h3',null,'Add again')),h('div',{class:'tags'},recent.map(e=>h('button',{type:'button',class:'btn sm',onclick:()=>{ const o={id:uid(),date:d}; ['name','meal','serving','src',...NUTS.map(n=>n[0])].forEach(k=>{ if(e[k]!==undefined) o[k]=e[k]; }); S.food.entries.push(o); save('food'); toast(`Added ${e.name}`); }},'+ ',e.name,h('span',{class:'faint'},` ${Math.round(num(e.kcal))}`))))):null);
 }
 
 /* Recipes */
@@ -2182,6 +2383,7 @@ loadLocal();
 render(true);
 initDb();
 initDesktop();
+initSample();
 })();
 </script>
 
